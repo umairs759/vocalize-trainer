@@ -44,3 +44,18 @@
 - [x] Wire up Reset and Back to Dashboard buttons
 - [x] Add direct view switch bridge from onboarding to practice
 - [x] Update version watermark to `v5.0 Live`
+
+## Phase 8: Multi-Topic Dynamic Database & Full Practice Interaction (v6.0)
+- [x] Create 45+ unique topics (5 categories × 3 levels × 3 topics each)
+- [x] Fix chip selection state mapping (Daily Life → daily_life, Beginner → beginner)
+- [x] Add `normalizeKey()` for accurate interest/level key normalization
+- [x] Add `getRandomTopic()` randomizer that picks a NEW topic every practice
+- [x] Fix `initPracticeSession()` to pass exact chosen values and update badges
+- [x] Wire up "Play Native Accent" with TTS + karaoke `onboundary` highlighting (#ffeb3b !important)
+- [x] Wire up "Record Voice" with live transcript box (#live-transcript)
+- [x] Wire up "Done / Evaluate" with 3-pillar scoring and results view
+- [x] Wire up speed buttons (0.8x Slow / 1.0x Normal) with active class toggle
+- [x] Wire up Reset button (stop TTS/mic, clear highlights, re-render)
+- [x] Wire up Dashboard/Back button (stop all audio, switch view)
+- [x] Update version stamp to `v6.0 Fully Interactive Live`
+- [x] Add `?v=6.0` cache-busting to script tag
