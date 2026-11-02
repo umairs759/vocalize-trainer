@@ -110,6 +110,12 @@ input:focus, textarea:focus, select:focus { outline: none; }
 .toast.success { border-left: 4px solid var(--success); }
 .toast.warn { border-left: 4px solid var(--warn); }
 .toast.error { border-left: 4px solid var(--error); }
+.chip-group.error { border: 2px solid var(--error); box-shadow: 0 0 12px rgba(239, 68, 68, 0.4); animation: chipShake 0.5s ease-in-out; }
+@keyframes chipShake {
+  0%, 100% { transform: translateX(0) }
+  20%, 60% { transform: translateX(8px) }
+  40%, 80% { transform: translateX(-8px) }
+}
 
 /* --- Speech fallback notice --- */
 .speech-fallback {

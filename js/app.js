@@ -223,6 +223,8 @@ function init() {
     if (!scorer.supported && speechFallback) speechFallback.classList.remove("hidden");
 
     // Chip groups — with explicit logging
+    const obInterestInput = $("ob-interest");
+    const obLevelInput = $("ob-level");
     setupChipGroup("ob-interest-group", (val)=>{ if(obInterestInput)obInterestInput.value=val; });
     setupChipGroup("ob-level-group", (val)=>{ if(obLevelInput)obLevelInput.value=val; });
 
@@ -236,7 +238,16 @@ function init() {
       const name=$("ob-name").value.trim(), age=parseInt($("ob-age").value)||0;
       if(!name||name.length<2){ui.toast({message:"Please enter your name (2+ chars)",type:"error"});return;}
       if(!age||age<13){ui.toast({message:"Please enter a valid age",type:"error"});return;}
-      if(!$("ob-interest").value||!$("ob-level").value){ui.toast({message:"Please select an interest and a level",type:"error"});return;}
+      if(!$("ob-interest").value||!$("ob-level").value){
+        // Flash chip groups in red
+        const interestGroup = $("ob-interest-group");
+        const levelGroup = $("ob-level-group");
+        if(interestGroup) interestGroup.classList.add("error");
+        if(levelGroup) levelGroup.classList.add("error");
+        setTimeout(()=>{ if(interestGroup) interestGroup.classList.remove("error"); if(levelGroup) levelGroup.classList.remove("error"); }, 1500);
+        ui.toast({message:"Please select an interest and target level",type:"error"});
+        return;
+      }
       profile={name,age,interest:$("ob-interest").value,level:$("ob-level").value,streakCount:profile?profile.streakCount||0:0};
       storage.saveUserProfile(profile); storage.updateStreak(); profile=storage.getUserProfile();
       ui.toast({message:`Welcome, ${name}!`,type:"success"}); goDashboard();});
@@ -261,13 +272,13 @@ function init() {
     rbs.forEach(b=>safeOn(b,"click",()=>{currentRate=parseFloat(b.dataset.rate);rbs.forEach(x=>x.classList.toggle("active",x===b));}));
 
     // Play/audio
-    safeOn($("pracPlay"),"click",()=>{if(!currentTopic)return;if(speechEngine.isSpeaking()){speechEngine.stop();if(pracPlay)pracPlay.textContent="▶ Play Native Accent";return;}if(pracPlay)pracPlay.textContent="⏹ Stop Audio";speechEngine.speak(karaokeContainer,currentTopic.paragraph,currentRate,()=>{},()=>{if(pracPlay)pracPlay.textContent="▶ Play Native Accent";}});
+    safeOn($("prac-play"),"click",()=>{if(!currentTopic)return;if(speechEngine.isSpeaking()){speechEngine.stop();if(pracPlay)pracPlay.textContent="▶ Play Native Accent";return;}if(pracPlay)pracPlay.textContent="⏹ Stop Audio";speechEngine.speak(karaokeContainer,currentTopic.paragraph,currentRate,()=>{},()=>{if(pracPlay)pracPlay.textContent="▶ Play Native Accent";}});
 
     // Record
     safeOn($("pracRecord"),"click",()=>{if(!currentTopic)return;if(recognizer&&scorer.isListening(recognizer)){stopRecording();}else{startRecording();}});
 
     // Done
-    safeOn($("pracDone"),"click",()=>showResults());
+    safeOn($("prac-done"),"click",()=>showResults());
 
     // Results nav
     safeOn($("resBack"),"click",()=>ui.showView("view-dashboard"));
@@ -280,8 +291,8 @@ function init() {
     safeOn($("storyDownload"),"click",()=>{const s=parseInt($("res-score").textContent)||0;storyCard.export({score:s});});
 
     // Speech fallback
-    safeOn($("btnSimulateMic"),"click",()=>{simulateMode=true;if(speechFallback)speechFallback.classList.add("hidden");ui.toast({message:"Simulation mode enabled",type:"success"});});
-    safeOn($("btnDismissFallback"),"click",()=>{if(speechFallback)speechFallback.classList.add("hidden");});
+    safeOn($("btn-simulate-mic"),"click",()=>{simulateMode=true;if(speechFallback)speechFallback.classList.add("hidden");ui.toast({message:"Simulation mode enabled",type:"success"});});
+    safeOn($("btn-dismiss-fallback"),"click",()=>{if(speechFallback)speechFallback.classList.add("hidden");});
 
     // Entry point
     if(profile&&profile.name){goDashboard();}else{ui.showView("view-onboarding");}

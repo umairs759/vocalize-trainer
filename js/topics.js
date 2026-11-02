@@ -71,19 +71,20 @@ const topics = {
         ]
       }
     ],
-    creative: [
+    cinema: [
       {
-        id: "beginner-creative-painting",
-        title: "Painting a Picture",
-        interest: "creative",
+        id: "beginner-cinema-movie",
+        title: "My Favorite Movie",
+        interest: "cinema",
         level: "beginner",
         paragraph:
-          "I love painting pictures in my free time. I use bright colors like red, blue, and yellow. Painting helps me express my feelings. I hang my art on the wall.",
+          "I love watching movies in my free time. The story was exciting and the actors were great. I watched it with my family and we talked about it afterward. It was a wonderful experience.",
         vocabulary: [
-          { word: "painting", urdu: "پینٹنگ", synonym: "art", example: "Painting is fun." },
-          { word: "colors", urdu: "رنگ", synonym: "hues", example: "I like bright colors." },
-          { word: "feelings", urdu: "جذبات", synonym: "emotions", example: "I share my feelings." },
-          { word: "wall", urdu: "دیوار", synonym: "partition", example: "Art on the wall." }
+          { word: "movie", urdu: "مموری", synonym: "film", example: "I watched a movie." },
+          { word: "story", urdu: "کاہانی", synonym: "tale", example: "The story was good." },
+          { word: "actors", urdu: "آکرز", synonym: "performers", example: "The actors were great." },
+          { word: "family", urdu: "خاندان", synonym: "relatives", example: "I watched with family." },
+          { word: "experience", urdu: "تجربه", synonym: "experience", example: "A wonderful experience." }
         ]
       }
     ]
@@ -130,7 +131,7 @@ const topics = {
         paragraph:
           "Writing clear emails is essential in a modern office. I always start with a polite greeting and state the purpose early. Short paragraphs make the message easier to read. I proofread before I click send.",
         vocabulary: [
-          { word: "essential", urdu: "لازمی", synonym: "necessary", example: "Water is essential." },
+          { word: "essential", urdu: "لازمے", synonym: "necessary", example: "Water is essential." },
           { word: "greeting", urdu: "سلام", synonym: "salutation", example: "A polite greeting." },
           { word: "purpose", urdu: "مقصد", synonym: "aim", example: "What is the purpose?" },
           { word: "proofread", urdu: "پروف ریڈ کرنا", synonym: "check", example: "I proofread my email." }
@@ -153,19 +154,20 @@ const topics = {
         ]
       }
     ],
-    creative: [
+    cinema: [
       {
-        id: "intermediate-creative-photo",
-        title: "Street Photography",
-        interest: "creative",
+        id: "intermediate-cinema-review",
+        title: "Movie Review",
+        interest: "cinema",
         level: "intermediate",
         paragraph:
-          "Street photography captures unexpected moments in public places. I walk around the city with my camera looking for interesting light. A good photo tells a story without words. Patience is the secret to a great shot.",
+          "The film I saw last week had an amazing soundtrack and beautiful cinematography. The plot kept me guessing until the very end. I would highly recommend it to anyone who enjoys thoughtful drama. The direction was superb.",
         vocabulary: [
-          { word: "photography", urdu: "تصاویر کرنا", synonym: "imaging", example: "I love photography." },
-          { word: "moments", urdu: "لحظے", synonym: "instances", example: "Happy moments." },
-          { word: "patience", urdu: "صبر", synonym: "tolerance", example: "Patience is key." },
-          { word: "story", urdu: "قصة", synonym: "tale", example: "Tell a story." }
+          { word: "soundtrack", urdu: "اساؤنڈ ٹرک", synonym: "music", example: "The soundtrack was great." },
+          { word: "cinematography", urdu: "سینیمائوگرافی", synonym: "photography", example: "Beautiful shots." },
+          { word: "plot", urdu: "quet", synonym: "story", example: "The plot was tight." },
+          { word: "highly", urdu: "زیادہ", synonym: "very", example: "I highly recommend it." },
+          { word: "recommend", urdu: "mosanِn", synonym: "suggest", example: "I recommend this." }
         ]
       }
     ]
@@ -183,7 +185,7 @@ const topics = {
           { word: "artificial", urdu: "مصنوعی", synonym: "human-made", example: "Artificial intelligence." },
           { word: "intelligence", urdu: "ذہانت", synonym: "smartness", example: "Human intelligence." },
           { word: "opportunities", urdu: "موقع", synonym: "chances", example: "New opportunities." },
-          { word: "skill", urdu: "ہunar", synonym: "ability", example: "A useful skill." },
+          { word: "skill", urdu: "ہنر", synonym: "ability", example: "A useful skill." },
           { word: "questions", urdu: "سوالات", synonym: "queries", example: "Difficult questions." }
         ]
       }
@@ -231,7 +233,7 @@ const topics = {
         paragraph:
           "Training for a marathon tests both physical endurance and mental strength. I increase my running distance gradually every week. Proper nutrition and rest are just as important as the runs. Crossing the finish line feels like a personal victory.",
         vocabulary: [
-          { word: "marathon", urdu: "میراتھن", synonym: "long race", example: "Run a marathon." },
+          { word: "marathon", urdu: "Mirathon", synonym: "long race", example: "Run a marathon." },
           { word: "endurance", urdu: "برداشت", synonym: "stamina", example: "Physical endurance." },
           { word: "nutrition", urdu: "غذائیت", synonym: "diet", example: "Good nutrition." },
           { word: "victory", urdu: "فتح", synonym: "win", example: "Sweet victory." },
@@ -239,20 +241,20 @@ const topics = {
         ]
       }
     ],
-    creative: [
+    cinema: [
       {
-        id: "advanced-creative-novel",
-        title: "Writing a Novel",
-        interest: "creative",
+        id: "advanced-cinema-classic",
+        title: "Classic Cinema",
+        interest: "cinema",
         level: "advanced",
         paragraph:
-          "Writing a novel is a marathon of imagination and discipline. I outline the plot before drafting the first chapter. Revising takes longer than writing, but it shapes the final story. Seeing my book on a shelf is a dream come true.",
+          "Classic cinema from the golden era continues to inspire modern filmmakers. The storytelling techniques developed decades ago are still studied today. I appreciate the artistry and craftsmanship of those early films. Their influence can be seen in contemporary works.",
         vocabulary: [
-          { word: "novel", urdu: "ناول", synonym: "book", example: "Write a novel." },
-          { word: "imagination", urdu: "تصور", synonym: "creativity", example: "Pure imagination." },
-          { word: "plot", urdu: "کہانی", synonym: "storyline", example: "The plot twists." },
-          { word: "revising", urdu: "ترمیم", synonym: "editing", example: "Revising the draft." },
-          { word: "dream", urdu: "خواб", synonym: "aspiration", example: "A dream come true." }
+          { word: "classic", urdu: "پیشistory", synonym: "timeless", example: "A classic film." },
+          { word: "cinema", urdu: "سینما", synonym: "film", example: "Cinema history." },
+          { word: "filmmakers", urdu: "فلم_exec", synonym: "directors", example: "Modern filmmakers." },
+          { word: "storytelling", urdu: "ursday", synonym: "narrative", example: "Story techniques." },
+          { word: "influence", urdu: "تحریک", synonym: "impact", example: "Cultural influence." }
         ]
       }
     ]
