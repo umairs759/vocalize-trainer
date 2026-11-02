@@ -264,8 +264,15 @@ input:focus, textarea:focus, select:focus { outline: none; }
   background: #a855f7 !important;
   color: #ffffff !important;
   border-color: #c084fc !important;
-  box-shadow: 0 0 15px rgba(168, 85, 247, 0.6) !important;
-  transform: scale(1.04) !important;
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.7) !important;
+}
+.chip.chip-selected,
+.chip.chip.active,
+button.chip.active {
+  background-color: #a855f7 !important;
+  color: #ffffff !important;
+  border-color: #c084fc !important;
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.7) !important;
 }
 .chip-group { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 

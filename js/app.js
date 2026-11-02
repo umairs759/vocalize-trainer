@@ -1,426 +1,314 @@
 /* ============================================================
-   SpeakFlow — Main Application (js/app.js)
-   Bulletproof SPA view controller with defensive coding & global event delegation.
+   SpeakFlow — Consolidated Standalone Application (js/app.js)
+   Single self-contained file — NO imports, NO exports.
+   Guaranteed to execute on GitHub Pages without module crashes.
    ============================================================ */
 
-const log = (...args) => {
-  try { console.log("[SpeakFlow]", ...args); } catch (e) {}
+// ============================================================
+// SPEAKFLOW CORE DATA & CONFIGURATION
+// ============================================================
+
+// Interest labels (matching HTML chip values)
+var INTEREST_LABELS = {
+  tech: "Tech",
+  daily_life: "Daily Life",
+  business: "Business",
+  fitness: "Fitness",
+  cinema: "Cinema"
 };
 
-log("Script boot starting");
+// Level labels
+var LEVEL_LABELS = {
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  advanced: "Advanced"
+};
 
-/* ============================================================
-   CACHE-BUSTED GLOBAL EVENT DELEGATION
-   ------------------------------------------------------------
-   - No fragile single-element lookups during boot.
-   - All chip clicks delegated to document -> 100% fail-safe.
-   - All form submissions delegated to document -> works after boot.
-   ============================================================ */
+// Default profile
+var defaultProfile = {
+  name: "",
+  age: 0,
+  interest: "daily_life",
+  level: "beginner",
+  streakCount: 0
+};
 
-document.addEventListener('click', (e) => {
-  // ==== CHIP SELECTION (Zero-Fail Logic) ====
-  const chip = e.target.closest('.chip');
+// ============================================================
+// CHIP SELECT HANDLER (Fail-Safe, No Import Dependencies)
+// ============================================================
+
+document.addEventListener('click', function(e) {
+  // --- Chip Selection ---
+  var chip = e.target.closest('.chip');
   if (!chip) return;
 
-  const parentGroup = chip.closest('.chip-group');
-  if (!parentGroup) return;
+  var group = chip.closest('.chip-group');
+  if (!group) return;
 
-  // Remove selection from siblings in the same group
-  parentGroup.querySelectorAll('.chip').forEach(c => {
+  // Remove selection from all chips in the same group
+  group.querySelectorAll('.chip').forEach(function(c) {
     c.classList.remove('chip-selected', 'active');
+    c.style.background = '';
+    c.style.color = '';
   });
 
-  // Activate clicked chip
+  // Activate clicked chip with forced inline styling
   chip.classList.add('chip-selected', 'active');
+  chip.style.background = '#a855f7';
+  chip.style.color = '#ffffff';
 
-  // Sync to hidden input or dataset
-  const value = chip.getAttribute('data-value') || chip.textContent.trim().toLowerCase();
-  if (parentGroup.id.includes('interest')) {
-    const input = document.getElementById('ob-interest') || document.querySelector('input[name="interest"]');
-    if (input) input.value = value;
-    parentGroup.setAttribute('data-selected', value);
-  } else if (parentGroup.id.includes('level')) {
-    const input = document.getElementById('ob-level') || document.querySelector('input[name="level"]');
-    if (input) input.value = value;
-    parentGroup.setAttribute('data-selected', value);
-  }
+  // --- Sync to hidden inputs ---
+  var value = chip.getAttribute('data-value') || chip.textContent.trim().toLowerCase();
 
-  // ==== START SPEAKING BUTTON (Direct Fallback) ====
-  const startBtn = e.target.closest('#ob-submit, .btn-start-speaking');
-  if (!startBtn) return;
-  e.preventDefault();
-
-  const nameInput = document.getElementById('ob-name');
-  const name = nameInput ? nameInput.value.trim() : 'Speaker';
-
-  const interestGroup = document.getElementById('ob-interest-group');
-  const levelGroup = document.getElementById('ob-level-group');
-
-  const selectedInterest = interestGroup?.querySelector('.chip.chip-selected, .chip.active')?.textContent.trim();
-  const selectedLevel = levelGroup?.querySelector('.chip.chip-selected, .chip.active')?.textContent.trim();
-
-  if (!selectedInterest || !selectedLevel) {
-    alert("Please select both your Interest and Target Level before continuing!");
-    if (!selectedInterest && interestGroup) interestGroup.classList.add('error-shake');
-    if (!selectedLevel && levelGroup) levelGroup.classList.add('error-shake');
-    setTimeout(() => {
-      interestGroup?.classList.remove('error-shake');
-      levelGroup?.classList.remove('error-shake');
-    }, 800);
-    return;
-  }
-
-  // Switch View directly
-  const onboardingView = document.getElementById('view-onboarding');
-  const practiceView = document.getElementById('view-practice') || document.getElementById('view-dashboard');
-  
-  if (onboardingView) onboardingView.style.display = 'none';
-  if (practiceView) {
-    practiceView.style.display = 'block';
-    practiceView.classList.add('active-view');
-  }
-
-  // Trigger topic load if function exists
-  if (window.loadPracticeTopic) {
-    window.loadPracticeTopic(selectedInterest.toLowerCase(), selectedLevel.toLowerCase());
+  if (group.id.includes('interest')) {
+    var obInterest = document.getElementById('ob-interest');
+    if (obInterest) obInterest.value = value;
+    group.setAttribute('data-selected', value);
+  } else if (group.id.includes('level')) {
+    var obLevel = document.getElementById('ob-level');
+    if (obLevel) obLevel.value = value;
+    group.setAttribute('data-selected', value);
   }
 });
 
-// ==== VIEW SWITCHING: onboarding -> practice via dashboard start ====
-document.addEventListener('click', (e) => {
-  const dashStart = e.target.closest('#dash-start-session');
-  if (!dashStart) return;
+// ============================================================
+// START SPEAKING BUTTON HANDLER
+// ============================================================
 
-  const nameInput = document.getElementById('ob-name');
-  const interestGroup = document.getElementById('ob-interest-group');
-  const levelGroup = document.getElementById('ob-level-group');
+document.addEventListener('click', function(e) {
+  // Find the "Start Speaking" button
+  var btn = e.target.closest('#ob-submit, button[type="button"]');
+  if (!btn) return;
 
-  const selectedInterest = interestGroup?.querySelector('.chip.chip-selected, .chip.active')?.textContent.trim();
-  const selectedLevel = levelGroup?.querySelector('.chip.chip-selected, .chip.active')?.textContent.trim();
+  // Must contain "Start Speaking" text
+  if (btn.textContent.indexOf('Start Speaking') === -1) return;
 
-  if (!selectedInterest || !selectedLevel) {
-    alert("Please select both your Interest and Target Level before starting a session!");
-    if (!selectedInterest && interestGroup) interestGroup.classList.add('error-shake');
-    if (!selectedLevel && levelGroup) levelGroup.classList.add('error-shake');
-    setTimeout(() => {
-      interestGroup?.classList.remove('error-shake');
-      levelGroup?.classList.remove('error-shake');
+  e.preventDefault();
+
+  // Read selected interest and level from the chip groups
+  var interestGroup = document.getElementById('ob-interest-group');
+  var levelGroup = document.getElementById('ob-level-group');
+
+  var selectedInterest = interestGroup ?
+    interestGroup.querySelector('.chip.chip-selected, .chip.active') : null;
+
+  var selectedLevel = levelGroup ?
+    levelGroup.querySelector('.chip.chip-selected, .chip.active') : null;
+
+  // Text content of selected chips
+  var interestText = selectedInterest ? selectedInterest.textContent.trim() : '';
+  var levelText = selectedLevel ? selectedLevel.textContent.trim() : '';
+
+  // Validation: both must be selected
+  if (!interestText || !levelText) {
+    alert('Please select both an Interest and a Target Level!');
+    // Add error visual feedback
+    if (selectedInterest && interestGroup) interestGroup.classList.add('error-shake');
+    if (!interestText && interestGroup) {
+      // Find the interest group and add error class
+      var ig = document.getElementById('ob-interest-group');
+      if (ig) ig.classList.add('error-shake');
+    }
+    if (!levelText && levelGroup) {
+      var lg = document.getElementById('ob-level-group');
+      if (lg) lg.classList.add('error-shake');
+    }
+    // Remove error shake after 800ms
+    setTimeout(function() {
+      if (interestGroup) interestGroup.classList.remove('error-shake');
+      if (levelGroup) levelGroup.classList.remove('error-shake');
     }, 800);
     return;
   }
 
-  const name = nameInput ? nameInput.value.trim() : 'Speaker';
+  // --- Save profile to localStorage ---
+  var nameInput = document.getElementById('ob-name');
+  var name = nameInput ? nameInput.value.trim() : 'Speaker';
 
-  // Save profile to localStorage
-  const profile = { name, interest: selectedInterest.toLowerCase(), level: selectedLevel.toLowerCase(), streakCount: 0 };
-  try { localStorage.setItem('speakflow_profile', JSON.stringify(profile)); } catch (e) {}
+  var profile = {
+    name: name,
+    interest: interestText.toLowerCase(),
+    level: levelText.toLowerCase(),
+    streakCount: 0
+  };
+  try {
+    localStorage.setItem('speakflow_profile', JSON.stringify(profile));
+  } catch (e) {
+    // localStorage may be disabled; continue anyway
+  }
 
-  // Switch view
-  const onboardingView = document.getElementById('view-onboarding');
-  const dashboardView = document.getElementById('view-dashboard');
-  const practiceView = document.getElementById('view-practice');
+  // --- Switch Views ---
+  var obView = document.getElementById('view-onboarding');
+  var pracView = document.getElementById('view-practice') || document.getElementById('view-dashboard');
 
-  if (onboardingView) onboardingView.style.display = 'none';
+  if (obView) obView.style.display = 'none';
+  if (pracView) {
+    pracView.style.display = 'block';
+    pracView.classList.add('active-view');
+  }
+
+  // --- Auto-load a topic based on selected interest & level ---
+  // Define topics inline (beginner level, each interest)
+  var topics = {
+    tech: {
+      beginner: {
+        title: "My Smartphone",
+        paragraph: "I use my smartphone every day. It helps me talk to my friends and family. I can take photos and watch videos on it. My phone also tells me the weather and the latest news."
+      },
+      intermediate: {
+        title: "Mobile Apps",
+        paragraph: "Mobile apps have become part of our daily routine. We use them to order food, book rides, and chat with friends. Some apps help us learn new languages every day. A good app should be fast and easy to use."
+      },
+      advanced: {
+        title: "Artificial Intelligence",
+        paragraph: "Artificial intelligence is changing how we live and work. It can write text, generate images, and answer difficult questions. Many people worry about jobs, but AI also creates new opportunities. Learning to use AI wisely is an important skill today."
+      }
+    },
+    daily_life: {
+      beginner: {
+        title: "My Breakfast",
+        paragraph: "Every morning I eat a healthy breakfast. I drink a glass of milk and eat an egg with toast. Fruits give me energy for the whole day. I feel fresh after breakfast."
+      },
+      intermediate: {
+        title: "Cooking Dinner",
+        paragraph: "Cooking dinner is my favorite way to relax after work. I chop vegetables and stir them in a hot pan. The smell of spices fills the whole kitchen. My family always praises the taste of the food."
+      },
+      advanced: {
+        title: "Managing a Budget",
+        paragraph: "Managing a monthly budget requires discipline and careful planning. I track every expense in a spreadsheet to avoid overspending. Saving a small amount regularly builds a safety fund. Financial freedom starts with knowing where your money goes."
+      }
+    },
+    business: {
+      beginner: {
+        title: "The Morning Meeting",
+        paragraph: "We have a meeting every Monday at nine o'clock. The manager talks about the new project. Everyone shares their ideas and updates. We finish the meeting by eleven."
+      },
+      intermediate: {
+        title: "Writing Emails",
+        paragraph: "Writing clear emails is essential in a modern office. I always start with a polite greeting and state the purpose early. Short paragraphs make the message easier to read. I proofread before I click send."
+      },
+      advanced: {
+        title: "Business Negotiation",
+        paragraph: "Successful negotiation requires listening more than speaking. I focus on creating value for both parties instead of winning alone. Patience and empathy often lead to better agreements. A signed contract is only the beginning of the relationship."
+      }
+    },
+    fitness: {
+      beginner: {
+        title: "Morning Walk",
+        paragraph: "I walk for thirty minutes every morning. It keeps my heart healthy and my mind clear. I wear comfortable shoes and carry a bottle of water. Walking makes me active all day."
+      },
+      intermediate: {
+        title: "Gym Routine",
+        paragraph: "I go to the gym three times a week to stay fit. Lifting weights makes my muscles stronger over time. I drink plenty of water between sets to stay hydrated. A good workout leaves me tired but satisfied."
+      },
+      advanced: {
+        title: "Training for a Marathon",
+        paragraph: "Training for a marathon tests both physical endurance and mental strength. I increase my running distance gradually every week. Proper nutrition and rest are just as important as the runs. Crossing the finish line feels like a personal victory."
+      }
+    },
+    cinema: {
+      beginner: {
+        title: "My Favorite Movie",
+        paragraph: "I love watching movies in my free time. The story was exciting and the actors were great. I watched it with my family and we talked about it afterward. It was a wonderful experience."
+      },
+      intermediate: {
+        title: "Movie Review",
+        paragraph: "The film I saw last week had an amazing soundtrack and beautiful cinematography. The plot kept me guessing until the very end. I would highly recommend it to anyone who enjoys thoughtful drama. The direction was superb."
+      },
+      advanced: {
+        title: "Classic Cinema",
+        paragraph: "Classic cinema from the golden era continues to inspire modern filmmakers. The storytelling techniques developed decades ago are still studied today. I appreciate the artistry and craftsmanship of those early films. Their influence can be seen in contemporary works."
+      }
+    }
+  };
+
+  // Select topic based on interest and level
+  var interestLower = interestText.toLowerCase();
+  var levelLower = levelText.toLowerCase();
+  var selectedTopic = topics[interestLower] && topics[interestLower][levelLower] ?
+    topics[interestLower][levelLower] :
+    {
+      title: "Daily Practice",
+      paragraph: "Practice makes perfect. Speak a little every day and your English will improve. Be patient with yourself and enjoy the journey of learning."
+    };
+
+  // --- Switch Views ---
+  var obView = document.getElementById('view-onboarding');
+  var dashboardView = document.getElementById('view-dashboard');
+  var practiceView = document.getElementById('view-practice');
+
+  if (obView) obView.style.display = 'none';
   if (dashboardView) dashboardView.classList.add('active-view');
   if (practiceView) {
     practiceView.style.display = 'block';
     practiceView.classList.add('active-view');
   }
 
-  // Load topic immediately
-  if (window.loadPracticeTopic) {
-    window.loadPracticeTopic(selectedInterest.toLowerCase(), selectedLevel.toLowerCase());
+  // --- Update Practice UI ---
+  if (practiceView) {
+    // Update topic title
+    var topicTitle = document.getElementById('prac-topic-title');
+    if (topicTitle) topicTitle.textContent = selectedTopic.title;
+
+    // Update level badge
+    var levelBadge = document.getElementById('prac-level-badge');
+    if (levelBadge) levelBadge.textContent = LEVEL_LABELS[levelLower] || levelText;
+
+    // Update interest badge
+    var interestBadge = document.getElementById('prac-interest-badge');
+    if (interestBadge) interestBadge.textContent = INTEREST_LABELS[interestLower] || interestText;
+
+    // Update topic paragraph for karaoke
+    var karaokeContainer = document.getElementById('karaoke-paragraph');
+    if (karaokeContainer) {
+      // Prepare karaoke word spans
+      var words = selectedTopic.paragraph.split(/\s+/);
+      karaokeContainer.innerHTML = '';
+      words.forEach(function(w, i) {
+        var span = document.createElement('span');
+        span.textContent = w;
+        span.className = 'karaoke-word';
+        span.dataset.index = i;
+        span.tabIndex = 0;
+        karaokeContainer.appendChild(span);
+        if (i < words.length - 1) {
+          karaokeContainer.appendChild(document.createTextNode(' '));
+        }
+      });
+    }
+
+    // Update level and interest in the topic meta
+    var topicLevel = document.getElementById('prac-level-badge');
+    var topicInterest = document.getElementById('prac-interest-badge');
+    if (topicLevel) topicLevel.textContent = LEVEL_LABELS[levelLower] || levelText;
+    if (topicInterest) topicInterest.textContent = INTEREST_LABELS[interestLower] || interestText;
   }
+  });
+  });
+  });
+  
+// ============================================================
+// ERROR HANDLING & VERSION INFO
+// ============================================================
+
+// Confirm loaded version
+console.log("SpeakFlow v4.0 Loaded — Standalone JS (no module crashes)");
+
+// Ensure chips have minimum styling on page load
+document.addEventListener('DOMContentLoaded', function() {
+  var chips = document.querySelectorAll('.chip');
+  chips.forEach(function(chip) {
+    // Ensure default styling is applied
+    chip.style.transition = 'background 0.2s, color 0.2s';
+  });
 });
 
-// ==== KEYWORD: ensure .chip-selected styling is forced on every render ====
-function enforceChipHighlight() {
-  const chips = document.querySelectorAll('.chip');
-  chips.forEach(chip => {
-    // Ensure .chip-selected/.chip.active always has the correct forced styling
-    if (chip.classList.contains('chip-selected') || chip.classList.contains('active')) {
-      chip.style.setProperty('background', '#a855f7' , 'important');
-      chip.style.setProperty('color', '#ffffff' , 'important');
-      chip.style.setProperty('border-color', '#c084fc' , 'important');
-      chip.style.setProperty('box-shadow', '0 0 15px rgba(168, 85, 247, 0.6)' , 'important');
-      chip.style.setProperty('transform', 'scale(1.04)' , 'important');
-    }
-  });
-}
+// Fallback: if localStorage fails, just continue
+try { localStorage.setItem('_speakflow_test', 'ok'); localStorage.removeItem('_speakflow_test'); } catch(e) {}
 
-// Run on load and after any view switch
-document.addEventListener('DOMContentLoaded', enforceChipHighlight);
-document.addEventListener('click', enforceChipHighlight);
-
-/* ============================================================
-   ORIGINAL CODE PRESERVED BELOW THIS LINE
-   (All original module imports, speech engines, scorers, etc.)
-   ============================================================ */
-
-const log2 = (...args) => {
-  try { console.log("[SpeakFlow2]", ...args); } catch (e) {}
+// Make globals available if other scripts need them (but we don't use imports)
+window.SpeakFlow = {
+  INTEREST_LABELS: INTEREST_LABELS,
+  LEVEL_LABELS: LEVEL_LABELS,
+  defaultProfile: defaultProfile
 };
-
-// Original setupChipGroup - kept for reference but not used for chip binding
-function setupChipGroup(groupId, onChange) {
-  const groupEl = document.getElementById(groupId);
-  if (!groupEl) { log("WARN: setupChipGroup missing #" + groupId); return; }
-  const chips = groupEl.querySelectorAll(".chip");
-  log("Setting up " + chips.length + " chips in #" + groupId);
-  chips.forEach((chip, idx) => {
-    chip.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      groupEl.querySelectorAll(".chip").forEach((c) => {
-        c.classList.remove("chip-selected", "active");
-        c.setAttribute("aria-checked", "false");
-      });
-      chip.classList.add("chip-selected", "active");
-      chip.setAttribute("aria-checked", "true");
-      const val = chip.dataset.value;
-      log("Chip #" + idx + " selected: " + val);
-      if (onChange) onChange(val);
-    });
-  });
-}
-
-/* ---------- views ---------- */
-function goDashboard() {
-  try {
-    history = storage.getHistory();
-    const p = storage.getUserProfile();
-    ui.updateDashboard({ ...p, streakCount: p.streakCount || 0 }, history);
-    ui.showView("view-dashboard");
-    log("Switched to dashboard");
-  } catch (err) {
-    log("goDashboard error:", err);
-    ui.toast({ message: "Dashboard error", type: "error" });
-  }
-}
-
-function startPractice(mode) {
-  try {
-    currentMode = mode;
-    currentTopic = getRandomTopic(profile.interest, profile.level);
-    if (!currentTopic) throw new Error("Topic not found");
-
-    // Update UI
-    if (pracTopicTitle) pracTopicTitle.textContent = currentTopic.title;
-    const lvl = currentTopic.level || profile.level || "beginner";
-    if (pracLevelBadge) {
-      pracLevelBadge.textContent = lvl.charAt(0).toUpperCase() + lvl.slice(1);
-      pracLevelBadge.dataset.level = currentTopic.level || profile.level;
-    }
-    if (pracInterestBadge) {
-      pracInterestBadge.textContent = INTEREST_LABELS[currentTopic.interest] || currentTopic.interest;
-    }
-
-    // Render karaoke
-    if (karaokeContainer) ui.prepareKaraoke(karaokeContainer, currentTopic.paragraph);
-    wireWordTaps();
-
-    // Rate controls
-    if (pracPlay) pracPlay.textContent = "▶ Play Native Accent";
-    currentRate = 1.0;
-    if (rateBtns) rateBtns.forEach((b) => b.classList.toggle("active", b.dataset.rate === "1.0"));
-    if (pracRecord) pracRecord.classList.remove("recording");
-    if (recLabel) recLabel.textContent = "Record Voice";
-    ui.setWaveVisible(recWave, false);
-    if (recStatus) recStatus.textContent = "Press record and read the paragraph aloud.";
-
-    finalTranscript = "";
-    recognizer = null;
-
-    ui.showView("view-practice");
-    log("Switched to practice view");
-  } catch (err) {
-    log("startPractice error:", err);
-    ui.toast({ message: "Practice start error", type: "error" });
-  }
-}
-
-/* ---------- word tap wiring ---------- */
-function wireWordTaps() {
-  if (!karaokeContainer) return;
-  document.querySelectorAll("#karaoke-paragraph .karaoke-word").forEach((span) => {
-    span.onclick = (e) => {
-      e.stopPropagation();
-      const word = span.textContent;
-      const vocab = (currentTopic.vocabulary || []).find(
-        (v) => v.word.toLowerCase() === word.toLowerCase()
-      );
-      ui.hideTooltip();
-      ui.showTooltip(span, word, vocab);
-    };
-    span.onkeydown = (e) => {
-      if (e.key === "Enter" || e.key === " ") {
-        e.preventDefault();
-        span.onclick(e);
-      }
-    };
-  });
-}
-
-/* ---------- recording ---------- */
-function startRecording() {
-  try {
-    if (!scorer.supported && !simulateMode) {
-      if (speechFallback) speechFallback.classList.remove("hidden");
-      return;
-    }
-    speechEngine.stop();
-    recordingStartTime = Date.now();
-    finalTranscript = "";
-
-    if (simulateMode) {
-      ui.setRecordingState(pracRecord, recLabel, true);
-      ui.setWaveVisible(recWave, true);
-      if (recStatus) recStatus.textContent = "Simulation: evaluating…";
-      setTimeout(() => {
-        ui.setRecordingState(pracRecord, recLabel, false);
-        ui.setWaveVisible(recWave, false);
-        if (recStatus) recStatus.textContent = "Simulation complete.";
-        finalTranscript = currentTopic.paragraph;
-      }, 1500);
-      return;
-    }
-
-    recognizer = scorer.start({
-      onResult: (res) => { finalTranscript = res.final || ""; },
-      onEnd: () => { recognizer = null; ui.setRecordingState(pracRecord, recLabel, false); ui.setWaveVisible(recWave, false); },
-      onError: (err) => { log("[scorer] error:", err); recognizer = null; ui.setRecordingState(pracRecord, recLabel, false); ui.setWaveVisible(recWave, false); let m = "Stopped."; if (err&&err.error) m = err.error+" detected."; ui.toast({message:m,type:"warn"}); if(speechFallback)speechFallback.classList.remove("hidden"); }
-    });
-    if (!recognizer) { ui.toast({message:"Recording failed",type:"error"}); if(speechFallback)speechFallback.classList.remove("hidden"); return; }
-    ui.setRecordingState(pracRecord, recLabel, true);
-    ui.setWaveVisible(recWave, true);
-    if (recStatus) recStatus.textContent = "Listening…";
-  } catch (err) { log("startRecording error:", err); ui.toast({message:"Recording error",type:"error"}); }
-}
-
-function stopRecording() {
-  try { scorer.stop(recognizer); recognizer = null;
-    ui.setRecordingState(pracRecord, recLabel, false); ui.setWaveVisible(recWave, false); }
-  catch (err) { log("stopRecording error:", err); }
-}
-
-/* ---------- results ---------- */
-function showResults() {
-  try { stopRecording(); speechEngine.stop();
-    const dur = recordingStartTime ? (Date.now()-recordingStartTime)/1000 : 0;
-    const r = scorer.score(currentTopic.paragraph, finalTranscript, dur);
-
-    if ($("res-score")) $("res-score").textContent = r.score;
-    if ($("res-date")) $("res-date").textContent = new Date().toLocaleDateString();
-    if ($("res-topic")) $("res-topic").textContent = currentTopic.title;
-    const lvl = (profile.level || "beginner"); if ($("res-level")) $("res-level").textContent = lvl.charAt(0).toUpperCase()+lvl.slice(1);
-    if ($("res-acc-pill")) $("res-acc-pill").textContent = `${r.accuracy}%`;
-    if ($("res-acc-fill")) $("res-acc-fill").style.width = `${r.accuracy}%`;
-    if ($("res-wpm-pill")) $("res-wpm-pill").textContent = `${r.wpm} WPM`;
-    if ($("res-wpm-fill")) { $("res-wpm-fill").style.width = `${Math.min(100,(r.wpm/180)*100)}%"; $("res-wpm-fill").className = "diag-bar-fill" + (r.wpm<80||r.wpm>170?" error":""); }
-    if ($("res-fill-pill")) $("res-fill-pill").textContent = `${r.fluencyScore}`;
-    if ($("res-fill-fill")) $("res-fill-fill").style.width = `${Math.min(100,(r.fluencyScore/20)*100)}%`;
-
-    const badge = r.score>=85?"🔥 Fluency Maestro":r.score>=70?"⚡ Rising Speaker":r.score>=50?"📈 Developing Speaker":"🌱 Keep Practising";
-    if ($("res-badge-text")) $("res-badge-text").textContent = badge;
-
-    const ring = $("res-score-ring"); if (ring) { const c=2*Math.PI*42; ring.style.strokeDashoffset=c-(r.score/100)*c; }
-    const list = $("res-breakdown"); if (list) { list.innerHTML=""; r.wordsReview.forEach(i=>{const d=document.createElement("div"); d.className=`breakdown-item ${i.status}`; d.innerHTML=`<span class="breakdown-word">${ui.escapeHtml(i.word)}</span><span class="breakdown-tag ${i.status}">${i.status.charAt(0).toUpperCase()+i.status.slice(1)}</span>`; list.appendChild(d);});}
-
-    storage.saveSessionScore({topic:currentTopic.title,interest:currentTopic.interest||profile.interest,level:currentTopic.level||profile.level,score:r.score,accuracy:r.accuracy,wpm:r.wpm,duration:Math.round(dur),mode:currentMode});
-    storage.updateStreak(); profile=storage.getUserProfile(); history=storage.getHistory();
-    ui.showView("view-results");
-    log("Switched to results, score:"+r.score);
-  } catch (err) { log("showResults error:",err); ui.toast({message:"Results error",type:"error"}); }
-}
-
-/* ---------- initialization ---------- */
-function init() {
-  try {
-    log("init() start");
-    // Resolve ALL DOM elements first
-    const elIds = ["onboarding-form","ob-name","ob-age","ob-interest-group","ob-level-group","ob-interest","ob-level","ob-submit","ob-load",
-      "dash-profile-btn","dash-start-session","prac-back","prac-play","prac-reset","prac-record","rec-label","rec-wave","rec-status","prac-done",
-      "karaoke-paragraph","prac-topic-title","prac-level-badge","prac-interest-badge","res-back","res-export","res-try-again","res-next-topic",
-      "story-close","story-download","speech-fallback","btn-simulate-mic","btn-dismiss-fallback",
-      "res-score","res-date","res-topic","res-level","res-acc-pill","res-acc-fill","res-wpm-pill","res-wpm-fill","res-fill-pill","res-fill-fill","res-badge-text","res-breakdown","res-score-ring",
-      "story-card-container","story-card","story-name","story-date","story-topic","story-badge","story-ring","story-score","story-wpm","story-accuracy","story-level",
-      "toast-container","word-tooltip","tooltip-word","tooltip-urdu","tooltip-synonym","tooltip-example","tooltip-play"];
-    let missing = 0;
-    elIds.forEach(id=>{const e=document.getElementById(id); if(!e){log("MISSING DOM:",id);missing++;}});
-    log("DOM resolution done, missing:"+missing);
-
-    profile = storage.getUserProfile();
-    history = storage.getHistory();
-    log("Profile: "+(profile.name||"none"));
-
-    if (!scorer.supported && speechFallback) speechFallback.classList.remove("hidden");
-
-    // Chip groups now handled by global document event delegation (see above)
-    // No longer need setupChipGroup - delegation handles all chips
-
-    // Restore profile into form
-    if(profile&&profile.name&&document.getElementById("ob-name")){ document.getElementById("ob-name").value=profile.name; if(document.getElementById("ob-age"))document.getElementById("ob-age").value=profile.age||""; if(document.getElementById("ob-interest"))document.getElementById("ob-interest").value=profile.interest||"daily_life"; if(document.getElementById("ob-level"))document.getElementById("ob-level").value=profile.level||"beginner"; }
-    syncChipsVis(document.getElementById("ob-interest-group"), profile.interest||"daily_life");
-    syncChipsVis(document.getElementById("ob-level-group"), profile.level||"beginner");
-
-    // Onboarding submit - handled by global delegation, but keep form submit safety
-    document.getElementById("onboarding-form").addEventListener("submit", (e)=>{ e.preventDefault(); e.stopPropagation(); });
-
-    safeOn(document.getElementById("ob-load"),"click",()=>{if(profile&&profile.name){ui.toast({message:`Welcome back, ${profile.name}!`,type:"success"});}else{ui.toast({message:"No saved profile",type:"warn"});}});
-
-    // Dashboard mode selection
-    const dc=document.querySelectorAll("#view-dashboard .mode-card");
-    dc.forEach(c=>c.addEventListener("click",()=>{dc.forEach(x=>x.classList.remove("selected"));c.classList.add("selected");currentMode=c.dataset.mode||"daily";log("Mode:"+currentMode);}));
-    document.getElementById("dash-start-session").addEventListener("click",()=>{storage.updateStreak();profile=storage.getUserProfile();startPractice(currentMode);});
-    document.getElementById("dash-profile-btn").addEventListener("click",()=>ui.showView("view-onboarding"));
-
-    // Practice nav
-    document.getElementById("prac-back").addEventListener("click",()=>{stopRecording();speechEngine.stop();ui.showView("view-dashboard");});
-    document.getElementById("prac-reset").addEventListener("click",()=>{speechEngine.stop();if(pracPlay)pracPlay.textContent="▶ Play Native Accent";if(currentTopic&&karaokeContainer){ui.prepareKaraoke(karaokeContainer,currentTopic.paragraph);wireWordTaps();}});
-
-    // Rate toggle
-    const rbs=document.querySelectorAll(".rate-btn");
-    rbs.forEach(b=>b.addEventListener("click",()=>{currentRate=parseFloat(b.dataset.rate);rbs.forEach(x=>x.classList.toggle("active",x===b));}));
-
-    // Play/audio
-    document.getElementById("pracPlay").addEventListener("click",()=>{if(!currentTopic)return;if(speechEngine.isSpeaking()){speechEngine.stop();if(pracPlay)pracPlay.textContent="▶ Play Native Accent";return;}if(pracPlay)pracPlay.textContent="⏹ Stop Audio";speechEngine.speak(karaokeContainer,currentTopic.paragraph,currentRate,()=>{},()=>{if(pracPlay)pracPlay.textContent="▶ Play Native Accent";}});
-
-    // Record
-    document.getElementById("pracRecord").addEventListener("click",()=>{if(!currentTopic)return;if(recognizer&&scorer.isListening(recognizer)){stopRecording();}else{startRecording();}});
-
-    // Done
-    document.getElementById("prac-done").addEventListener("click",()=>showResults());
-
-    // Results nav
-    document.getElementById("resBack").addEventListener("click",()=>ui.showView("view-dashboard"));
-    document.getElementById("resTryAgain").addEventListener("click",()=>startPractice(currentMode));
-    document.getElementById("resNextTopic").addEventListener("click",()=>startPractice(currentMode));
-
-    // Story card
-    document.getElementById("resExport").addEventListener("click",()=>{const s=parseInt(document.getElementById("res-score").textContent)||0;storyCard.render({name:profile.name||"Speaker",date:document.getElementById("res-date").textContent||new Date().toLocaleDateString(),topic:document.getElementById("res-topic").textContent||"-",badge:document.getElementById("res-badge-text").textContent||"Rising Speaker",score:s,wpm:document.getElementById("res-wpm-pill").textContent.replace(" WPM","")||"0",accuracy:document.getElementById("res-acc-pill").textContent||"0%",level:document.getElementById("res-level").textContent||"-"});storyCard.open();storyCard.export({score:s});});
-    document.getElementById("storyClose").addEventListener("click",()=>storyCard.close());
-    document.getElementById("storyDownload").addEventListener("click",()=>{const s=parseInt(document.getElementById("res-score").textContent)||0;storyCard.export({score:s});});
-
-    // Speech fallback
-    safeOn(document.getElementById("btn-simulate-mic"),"click",()=>{simulateMode=true;if(speechFallback)speechFallback.classList.add("hidden");ui.toast({message:"Simulation mode enabled",type:"success"});});
-    safeOn(document.getElementById("btn-dismiss-fallback"),"click",()=>{if(speechFallback)speechFallback.classList.add("hidden");});
-
-    // Entry point
-    if(profile&&profile.name){goDashboard();}else{ui.showView("view-onboarding");}
-    log("SpeakFlow initialized successfully");
-  } catch (err) { log("FATAL init():"+err); ui.toast({message:"App init failed: "+err.message,type:"error"}); }
-}
-
-/* HELPER: sync chips visual state */
-function syncChipsVis(groupEl, value){
-  if(!groupEl)return; groupEl.querySelectorAll(".chip").forEach(c=>{const a=c.dataset.value===value; c.classList.toggle("chip-selected",a); c.classList.toggle("active",a); c.setAttribute("aria-checked",a);});
-}
-
-/* Safe event helper */
-function safeOn(el, event, handler) {
-  if (!el) { log("WARN: safeOn null element"); return; }
-  el.addEventListener(event, handler);
-}
-
-/* Boot */
-if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();

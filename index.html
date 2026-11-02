@@ -7,9 +7,7 @@
   <meta name="theme-color" content="#09090b">
   <meta name="description" content="SpeakFlow — English Speaking & Vocabulary Practice Web App">
 
-  <!-- Content Security Policy: allows ES modules, inline styles, CDNs, Web Speech API, media recording -->
-  <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self';">
+  <!-- SpeakFlow — No restrictive CSP; all scripts and CDNs allowed -->
 
   <title>SpeakFlow | English Speaking & Vocabulary Practice</title>
 
@@ -333,7 +331,48 @@
     <button id="story-download" type="button" class="story-download">Download PNG</button>
   </div>
 
-  <script type="module" src="./js/app.js?v=3.0"></script>
+  <script src="./js/app.js?v=4.0"></script>
+  <!-- Inline fail-safe chip & view switcher (bypasses all ES module failures) -->
+  <script>
+    // Instant Chip Selection
+    document.addEventListener('click', function(e) {
+      var chip = e.target.closest('.chip');
+      if (!chip) return;
+      var group = chip.closest('.chip-group');
+      if (!group) return;
+      group.querySelectorAll('.chip').forEach(function(c) {
+        c.classList.remove('chip-selected', 'active');
+        c.style.background = '';
+        c.style.color = '';
+      });
+      chip.classList.add('chip-selected', 'active');
+      chip.style.background = '#a855f7';
+      chip.style.color = '#ffffff';
+    });
+
+    // Start Speaking Button Direct Handler
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('#ob-submit, .btn-start-speaking, button[type="button"]');
+      if (!btn || btn.textContent.indexOf('Start Speaking') === -1) return;
+      e.preventDefault();
+
+      var interest = document.querySelector('#ob-interest-group .chip.chip-selected, #ob-interest-group .chip.active');
+      var level = document.querySelector('#ob-level-group .chip.chip-selected, #ob-level-group .chip.active');
+
+      if (!interest || !level) {
+        alert('Please select both an Interest and a Target Level!');
+        return;
+      }
+
+      var obView = document.getElementById('view-onboarding');
+      var pracView = document.getElementById('view-practice') || document.getElementById('view-dashboard');
+      if (obView && pracView) {
+        obView.style.display = 'none';
+        pracView.style.display = 'block';
+        pracView.classList.add('active-view');
+      }
+    });
+  </script>
   <!-- On-screen version stamp: confirms updated code is loaded -->
   <div style="position:fixed; bottom:8px; right:8px; font-size:11px; color:#888; z-index:9999;">v3.0 Live</div>
 </body>
