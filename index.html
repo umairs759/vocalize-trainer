@@ -331,7 +331,7 @@
     <button id="story-download" type="button" class="story-download">Download PNG</button>
   </div>
 
-  <script src="./js/app.js?v=4.0"></script>
+  <script src="./js/app.js?v=5.0"></script>
   <!-- Inline fail-safe chip & view switcher (bypasses all ES module failures) -->
   <script>
     // Instant Chip Selection
@@ -356,13 +356,16 @@
       if (!btn || btn.textContent.indexOf('Start Speaking') === -1) return;
       e.preventDefault();
 
-      var interest = document.querySelector('#ob-interest-group .chip.chip-selected, #ob-interest-group .chip.active');
-      var level = document.querySelector('#ob-level-group .chip.chip-selected, #ob-level-group .chip.active');
+      var interestEl = document.querySelector('#ob-interest-group .chip.chip-selected, #ob-interest-group .chip.active');
+      var levelEl = document.querySelector('#ob-level-group .chip.chip-selected, #ob-level-group .chip.active');
 
-      if (!interest || !level) {
+      if (!interestEl || !levelEl) {
         alert('Please select both an Interest and a Target Level!');
         return;
       }
+
+      var selectedInterest = interestEl.getAttribute('data-value') || interestEl.textContent.trim().toLowerCase();
+      var selectedLevel = levelEl.getAttribute('data-value') || levelEl.textContent.trim().toLowerCase();
 
       var obView = document.getElementById('view-onboarding');
       var pracView = document.getElementById('view-practice') || document.getElementById('view-dashboard');
@@ -371,9 +374,14 @@
         pracView.style.display = 'block';
         pracView.classList.add('active-view');
       }
+
+      // Load practice session with topic data
+      if (typeof loadPracticeSession === 'function') {
+        loadPracticeSession(selectedInterest, selectedLevel);
+      }
     });
   </script>
   <!-- On-screen version stamp: confirms updated code is loaded -->
-  <div style="position:fixed; bottom:8px; right:8px; font-size:11px; color:#888; z-index:9999;">v4.0 Live</div>
+  <div style="position:fixed; bottom:8px; right:8px; font-size:11px; color:#888; z-index:9999;">v5.0 Live</div>
 </body>
 </html>

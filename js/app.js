@@ -2,13 +2,13 @@
    SpeakFlow — Consolidated Standalone Application (js/app.js)
    Single self-contained file — NO imports, NO exports.
    Guaranteed to execute on GitHub Pages without module crashes.
+   Version: v5.0 Live
    ============================================================ */
 
 // ============================================================
 // SPEAKFLOW CORE DATA & CONFIGURATION
 // ============================================================
 
-// Interest labels (matching HTML chip values)
 var INTEREST_LABELS = {
   tech: "Tech",
   daily_life: "Daily Life",
@@ -17,14 +17,12 @@ var INTEREST_LABELS = {
   cinema: "Cinema"
 };
 
-// Level labels
 var LEVEL_LABELS = {
   beginner: "Beginner",
   intermediate: "Intermediate",
   advanced: "Advanced"
 };
 
-// Default profile
 var defaultProfile = {
   name: "",
   age: 0,
@@ -33,11 +31,29 @@ var defaultProfile = {
   streakCount: 0
 };
 
+// Global state
+var window = window || {};
+var currentActiveTopic = null;
+var currentPlaybackRate = 1.0;
+var currentTranscript = "";
+var recognizer = null;
+var recordingStartTime = null;
+var isRecording = false;
+
+// ============================================================
+// KEY NORMALIZATION
+// ============================================================
+
+function normalizeKey(str) {
+  if (!str) return '';
+  return str.trim().toLowerCase().replace(/\s+/g, '_');
+}
+
 // ============================================================
 // TOPICS DATABASE (15 scenarios across 5 interests × 3 levels)
 // ============================================================
 
-var topics = {
+var TOPICS = {
   beginner: {
     tech: [
       {
@@ -84,7 +100,7 @@ var topics = {
           { word: "meeting", urdu: "میٹنگ", synonym: "gathering", example: "We have a team meeting." },
           { word: "manager", urdu: "منیجر", synonym: "supervisor", example: "Our manager is kind." },
           { word: "project", urdu: "پروجیکٹ", synonym: "plan", example: "The project is due soon." },
-          { word: "ideas", urdu: "ایدیاز", synonym: "thoughts", example: "She has good ideas." }
+          { word: "ideas", urdu: "ایڈیاز", synonym: "thoughts", example: "She has good ideas." }
         ]
       }
     ],
@@ -278,16 +294,17 @@ var topics = {
 };
 
 // ============================================================
-// UTILITY FUNCTIONS
+// TOPIC LOADER
 // ============================================================
 
 function getRandomTopic(interest, level) {
-  var levelKey = level; // level is already "beginner", "intermediate", or "advanced"
-  var levelTopics = topics[levelKey];
+  var levelKey = normalizeKey(level);
+  var interestKey = normalizeKey(interest);
+  var levelTopics = TOPICS[levelKey];
   if (!levelTopics) return fallbackTopic();
 
-  var pool = interest && levelTopics[interest]
-    ? levelTopics[interest]
+  var pool = interestKey && levelTopics[interestKey]
+    ? levelTopics[interestKey]
     : Object.values(levelTopics).flat();
 
   if (!pool || pool.length === 0) return fallbackTopic();
@@ -320,11 +337,199 @@ function fallbackTopic() {
 }
 
 // ============================================================
-// SPEECH SYNTHESIS ENGINE (Karaoke & TTS)
+// LOAD PRACTICE SESSION (Main Entry from Onboarding)
 // ============================================================
 
+function loadPracticeSession(interestRaw, levelRaw) {
+  var interest = normalizeKey(interestRaw) || 'daily_life';
+  var level = normalizeKey(levelRaw) || 'beginner';
+
+  var topic = null;
+  if (TOPICS[interest] && TOPICS[interest][level]) {
+    topic = TOPICS[interest][level][0]; // Take first topic for that interest+level
+  } else {
+    // Fail-safe: pick first available topic so paragraph is NEVER blank
+    var firstCat = Object.keys(TOPICS)[0];
+    topic = TOPICS[firstCat][Object.keys(TOPICS[firstCat])[0]][0];
+  }
+
+  window.currentActiveTopic = topic;
+  renderTopicToPractice(topic);
+}
+
+// ============================================================
+// RENDER TOPIC TO PRACTICE VIEW
+// ============================================================
+
+function renderTopicToPractice(topic) {
+  // Update topic title
+  var topicTitle = document.getElementById('prac-topic-title');
+  if (topicTitle) topicTitle.textContent = topic.title;
+
+  // Update level badge
+  var levelBadge = document.getElementById('prac-level-badge');
+  if (levelBadge) levelBadge.textContent = LEVEL_LABELS[topic.level] || topic.level;
+
+  // Update interest badge
+  var interestBadge = document.getElementById('prac-interest-badge');
+  if (interestBadge) interestBadge.textContent = INTEREST_LABELS[topic.interest] || topic.interest;
+
+  // Render paragraph words into karaoke container
+  var karaokeContainer = document.getElementById('karaoke-paragraph');
+  if (karaokeContainer) {
+    karaokeContainer.innerHTML = '';
+    var words = topic.paragraph.split(/\s+/);
+    words.forEach(function(w, i) {
+      var span = document.createElement('span');
+      span.textContent = w;
+      span.className = 'karaoke-word';
+      span.dataset.index = i;
+      span.dataset.word = w;
+      span.tabIndex = 0;
+
+      // Tap-to-translate Urdu popup
+      span.addEventListener('click', function(e) {
+        e.stopPropagation();
+        showUrduPopup(span, topic.vocabulary);
+      });
+
+      span.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          span.click();
+        }
+      });
+
+      karaokeContainer.appendChild(span);
+      if (i < words.length - 1) karaokeContainer.appendChild(document.createTextNode(' '));
+    });
+  }
+
+  // Reset UI state
+  currentTranscript = "";
+  currentPlaybackRate = 1.0;
+
+  // Reset speed buttons
+  var speedBtns = document.querySelectorAll('.rate-btn');
+  speedBtns.forEach(function(btn) {
+    btn.classList.remove('active');
+    if (btn.dataset.rate === '1.0') btn.classList.add('active');
+  });
+
+  // Reset record button
+  var recBtn = document.getElementById('prac-record');
+  var recLabel = document.getElementById('rec-label');
+  if (recBtn) {
+    recBtn.classList.remove('recording');
+    recBtn.textContent = 'Record Voice';
+  }
+  if (recLabel) recLabel.textContent = 'Press record and read the paragraph aloud.';
+
+  // Reset status
+  var recStatus = document.getElementById('rec-status');
+  if (recStatus) recStatus.textContent = 'Press record and read the paragraph aloud.';
+
+  // Hide wave
+  var waveEl = document.getElementById('rec-wave');
+  if (waveEl) waveEl.classList.add('hidden');
+
+  // Initialize Urdu popup
+  initUrduPopup(topic.vocabulary);
+}
+
+// ============================================================
+// URDU POPUP (Tap-to-Translate)
+// ============================================================
+
+var urduPopup = {
+  container: null,
+  wordEl: null,
+  urduEl: null,
+  synEl: null,
+  exEl: null,
+  vocab: [],
+
+  init: function(vocabulary) {
+    this.vocab = vocabulary || [];
+    this.container = document.getElementById('word-tooltip');
+    this.wordEl = document.getElementById('tooltip-word');
+    this.urduEl = document.getElementById('tooltip-urdu');
+    this.synEl = document.getElementById('tooltip-synonym');
+    this.exEl = document.getElementById('tooltip-example');
+
+    var playBtn = document.getElementById('tooltip-play');
+    if (playBtn) {
+      playBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var word = urduPopup.wordEl.textContent;
+        if (window.speechSynthesis) {
+          var u = new SpeechSynthesisUtterance(word);
+          u.lang = 'en-US';
+          window.speechSynthesis.speak(u);
+        }
+      });
+    }
+
+    // Close popup when clicking elsewhere
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('#word-tooltip')) {
+        urduPopup.hide();
+      }
+    });
+  },
+
+  show: function(targetSpan, word, vocabData) {
+    if (!this.container) return;
+
+    this.wordEl.textContent = word;
+    if (vocabData && vocabData.urdu) this.urduEl.textContent = vocabData.urdu;
+    else this.urduEl.textContent = '';
+
+    if (vocabData && vocabData.synonym) this.synEl.textContent = 'Synonym: ' + vocabData.synonym;
+    else this.synEl.textContent = '';
+
+    if (vocabData && vocabData.example) this.exEl.textContent = 'Example: ' + vocabData.example;
+    else this.exEl.textContent = '';
+
+    var rect = targetSpan.getBoundingClientRect();
+    this.container.style.left = (rect.left + rect.width / 2) + 'px';
+    this.container.style.top = (rect.top - 10) + 'px';
+    this.container.classList.add('visible');
+    this.container.setAttribute('aria-hidden', 'false');
+  },
+
+  hide: function() {
+    if (this.container) {
+      this.container.classList.remove('visible');
+      this.container.setAttribute('aria-hidden', 'true');
+    }
+  }
+};
+
+function initUrduPopup(vocabulary) {
+  urduPopup.init(vocabulary);
+}
+
+function showUrduPopup(targetSpan, vocabulary) {
+  var word = targetSpan.textContent.trim();
+  var vocabData = null;
+  if (vocabulary) {
+    vocabData = vocabulary.find(function(v) {
+      return v.word.toLowerCase() === word.toLowerCase();
+    });
+  }
+  urduPopup.show(targetSpan, word, vocabData);
+}
+
+// ============================================================
+// SPEECH SYNTHESIS ENGINE (Karaoke + TTS)
+// ============================================================
+
+var synth = window.speechSynthesis;
+var synthesisSupported = !!synth;
+
 var speechEngine = {
-  supported: !!window.speechSynthesis,
+  supported: synthesisSupported,
 
   isSpeaking: function() {
     return synthesisSupported && synth.speaking;
@@ -334,11 +539,9 @@ var speechEngine = {
     if (synthesisSupported) {
       try { synth.cancel(); } catch (e) { console.warn("[speech-engine] cancel failed", e); }
     }
-    wordSpans = [];
-    activeIndex = -1;
   },
 
-  speak: function(container, paragraph, rate, onWordHighlight, onEnd) {
+  speak: function(paragraph, rate, onWordHighlight, onEnd) {
     this.stop();
 
     if (!synthesisSupported) {
@@ -346,45 +549,16 @@ var speechEngine = {
       return;
     }
 
-    container.innerHTML = "";
+    var utterance = new SpeechSynthesisUtterance(paragraph);
+    utterance.rate = rate || currentPlaybackRate;
+    utterance.lang = 'en-US';
+
     var words = paragraph.split(/\s+/);
-
-    wordSpans = words.map(function(w, i) {
-      var span = document.createElement("span");
-      span.textContent = w;
-      span.id = "word-" + i;
-      span.dataset.index = i;
-      span.className = "karaoke-word";
-      span.setAttribute("role", "button");
-      span.setAttribute("aria-label", "Word " + (i + 1) + ": " + w);
-      span.tabIndex = 0;
-
-      span.addEventListener("click", function(e) {
-        e.stopPropagation();
-        window.__speakflow_onWordTap?(w, i, span);
-      });
-
-      span.addEventListener("keydown", function(e) {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          span.click();
-        }
-      });
-
-      container.appendChild(span);
-      if (i < words.length - 1) container.appendChild(document.createTextNode(" "));
-      return span;
-    });
-
-    var currentUtterance = null;
+    var wordSpans = document.querySelectorAll('#karaoke-paragraph .karaoke-word');
     var activeIndex = -1;
 
-    var utterance = new SpeechSynthesisUtterance(paragraph);
-    utterance.rate = rate || 1;
-    utterance.lang = "en-US";
-
     utterance.onboundary = function(event) {
-      if (event.name !== "word" && event.name !== "sentence") return;
+      if (event.name !== 'word' && event.name !== 'sentence') return;
       var charIndex = event.charIndex;
       var cumulative = 0;
       var idx = -1;
@@ -398,104 +572,144 @@ var speechEngine = {
       }
 
       if (idx !== -1 && idx !== activeIndex) {
-        if (activeIndex !== -1) wordSpans[activeIndex].classList.remove("karaoke-active");
+        if (activeIndex !== -1 && wordSpans[activeIndex]) {
+          wordSpans[activeIndex].classList.remove('karaoke-active');
+        }
         activeIndex = idx;
-        wordSpans[idx].classList.add("karaoke-active");
-
-        try {
-          wordSpans[idx].scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-        } catch (e) { console.warn("[speech-engine] scrollIntoView failed", e); }
-
+        if (wordSpans[activeIndex]) {
+          wordSpans[activeIndex].classList.add('karaoke-active');
+          try {
+            wordSpans[activeIndex].scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+          } catch (e) { console.warn("[speech-engine] scrollIntoView failed", e); }
+        }
         if (onWordHighlight) onWordHighlight(words[idx], idx);
       }
     };
 
     utterance.onend = function() {
-      speechEngine.clearHighlights();
-      currentUtterance = null;
+      // Reset highlights
+      wordSpans.forEach(function(span) { span.classList.remove('karaoke-active'); });
+
+      // Reset play button
+      var playBtn = document.getElementById('prac-play');
+      if (playBtn) playBtn.textContent = '▶ Play Native Accent';
+
       if (onEnd) onEnd();
     };
 
     utterance.onerror = function(err) {
       console.warn("[speech-engine] utterance error", err);
-      speechEngine.clearHighlights();
-      currentUtterance = null;
+      wordSpans.forEach(function(span) { span.classList.remove('karaoke-active'); });
       if (onEnd) onEnd();
     };
 
     try {
       synth.speak(utterance);
-      currentUtterance = utterance;
     } catch (err) {
       console.warn("[speech-engine] speak failed", err);
-      speechEngine.clearHighlights();
       if (onEnd) onEnd();
     }
-  },
-
-  clearHighlights: function() {
-    wordSpans.forEach(function(span) { span.classList.remove("karaoke-active"); });
-    wordSpans = [];
-    activeIndex = -1;
   }
 };
-
-// Global synth reference
-var synth = window.speechSynthesis;
-var synthesisSupported = !!synth;
 
 // ============================================================
 // SPEECH RECOGNITION ENGINE
 // ============================================================
 
-var scorer = {
-  supported: !!window.SpeechRecognition || !!window.webkitSpeechRecognition,
+var RecCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+var recognitionSupported = !!RecCtor;
 
-  recognize: function(options) {
-    var RecCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!RecCtor) {
-      if (options.onError) options.onError(new Error("Speech recognition not supported"));
-      return null;
-    }
+function startRecording(options) {
+  if (!RecCtor) {
+    if (options.onError) options.onError(new Error("Speech recognition not supported"));
+    return null;
+  }
 
-    var recognizer = new RecCtor();
-    recognizer.continuous = true;
-    recognizer.interimResults = true;
-    recognizer.lang = "en-US";
+  var recognizer = new RecCtor();
+  recognizer.continuous = true;
+  recognizer.interimResults = true;
+  recognizer.lang = 'en-US';
 
-    var finalTranscript = "";
+  var finalTranscript = "";
 
-    recognizer.onresult = function(event) {
-      var interim = "";
-      for (var i = event.resultIndex; i < event.results.length; i++) {
-        var transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += (finalTranscript ? " " : "") + transcript;
-        } else {
-          interim += transcript;
-        }
+  recognizer.onresult = function(event) {
+    var interim = "";
+    for (var i = event.resultIndex; i < event.results.length; i++) {
+      var transcript = event.results[i][0].transcript;
+      if (event.results[i].isFinal) {
+        finalTranscript += (finalTranscript ? " " : "") + transcript;
+      } else {
+        interim += transcript;
       }
-      if (options.onResult) options.onResult({ final: finalTranscript, interim });
-    };
-
-    recognizer.onend = function() {
-      if (options.onEnd) options.onEnd(finalTranscript);
-    };
-
-    recognizer.onerror = function(event) {
-      if (options.onError) options.onError(event);
-    };
-
-    try {
-      recognizer.start();
-    } catch (err) {
-      if (options.onError) options.onError(err);
-      return null;
     }
+    if (options.onResult) options.onResult({ final: finalTranscript, interim });
+    currentTranscript = finalTranscript;
+  };
+
+  recognizer.onend = function() {
+    isRecording = false;
+    var recBtn = document.getElementById('prac-record');
+    var recLabel = document.getElementById('rec-label');
+    if (recBtn) {
+      recBtn.classList.remove('recording');
+      recBtn.textContent = 'Record Voice';
+    }
+    if (recLabel) recLabel.textContent = 'Press record and read the paragraph aloud.';
+    var waveEl = document.getElementById('rec-wave');
+    if (waveEl) waveEl.classList.add('hidden');
+    if (options.onEnd) options.onEnd(finalTranscript);
+  };
+
+  recognizer.onerror = function(event) {
+    isRecording = false;
+    var recBtn = document.getElementById('prac-record');
+    if (recBtn) {
+      recBtn.classList.remove('recording');
+      recBtn.textContent = 'Record Voice';
+    }
+    if (options.onError) options.onError(event);
+  };
+
+  try {
+    recognizer.start();
+    isRecording = true;
+    recordingStartTime = Date.now();
+
+    var recBtn = document.getElementById('prac-record');
+    var recLabel = document.getElementById('rec-label');
+    if (recBtn) {
+      recBtn.classList.add('recording');
+      recBtn.textContent = 'Listening... (Click to Stop)';
+    }
+    if (recLabel) recLabel.textContent = 'Listening... Speak now.';
+    var waveEl = document.getElementById('rec-wave');
+    if (waveEl) waveEl.classList.remove('hidden');
 
     return recognizer;
+  } catch (err) {
+    isRecording = false;
+    if (options.onError) options.onError(err);
+    return null;
   }
-};
+}
+
+function stopRecording() {
+  if (recognizer) {
+    recognizer.stop();
+    recognizer = null;
+  }
+  isRecording = false;
+
+  var recBtn = document.getElementById('prac-record');
+  var recLabel = document.getElementById('rec-label');
+  if (recBtn) {
+    recBtn.classList.remove('recording');
+    recBtn.textContent = 'Record Voice';
+  }
+  if (recLabel) recLabel.textContent = 'Press record and read the paragraph aloud.';
+  var waveEl = document.getElementById('rec-wave');
+  if (waveEl) waveEl.classList.add('hidden');
+}
 
 // ============================================================
 // SCORING ENGINE (3-Pillar: Accuracy, WPM, Fillers)
@@ -699,7 +913,6 @@ var storyCard = {
       link.click();
       document.body.removeChild(link);
 
-      // Confetti for scores >= 80
       if (data && data.score >= 80) {
         try {
           confetti({
@@ -717,7 +930,7 @@ var storyCard = {
 };
 
 // ============================================================
-// UI CONTROLLER (View switching, chips, toasts)
+// UI CONTROLLER
 // ============================================================
 
 var ui = {
@@ -798,19 +1011,16 @@ document.addEventListener('click', function(e) {
   var group = chip.closest('.chip-group');
   if (!group) return;
 
-  // Remove selection from all chips in the same group
   group.querySelectorAll('.chip').forEach(function(c) {
     c.classList.remove('chip-selected', 'active');
     c.style.background = '';
     c.style.color = '';
   });
 
-  // Activate clicked chip with forced inline styling
   chip.classList.add('chip-selected', 'active');
   chip.style.background = '#a855f7';
   chip.style.color = '#ffffff';
 
-  // Sync to hidden input or dataset
   var value = chip.getAttribute('data-value') || chip.textContent.trim().toLowerCase();
 
   if (group.id.includes('interest')) {
@@ -829,107 +1039,263 @@ document.addEventListener('click', function(e) {
 // ============================================================
 
 document.addEventListener('click', function(e) {
-  var btn = e.target.closest('#ob-submit, button[type="button"]');
+  var btn = e.target.closest('#ob-submit, .btn-start-speaking, button[type="button"]');
   if (!btn) return;
 
-  // Must contain "Start Speaking" text
   if (btn.textContent.indexOf('Start Speaking') === -1) return;
 
   e.preventDefault();
 
-  // Read selected interest and level from chip groups
-  var interestGroup = document.getElementById('ob-interest-group');
-  var levelGroup = document.getElementById('ob-level-group');
+  var interestEl = document.querySelector('#ob-interest-group .chip.chip-selected, #ob-interest-group .chip.active');
+  var levelEl = document.querySelector('#ob-level-group .chip.chip-selected, #ob-level-group .chip.active');
 
-  var selectedInterest = interestGroup ?
-    interestGroup.querySelector('.chip.chip-selected, .chip.active') : null;
-
-  var selectedLevel = levelGroup ?
-    levelGroup.querySelector('.chip.chip-selected, .chip.active') : null;
-
-  var interestText = selectedInterest ? selectedInterest.textContent.trim() : '';
-  var levelText = selectedLevel ? selectedLevel.textContent.trim() : '';
-
-  // Validation: both must be selected
-  if (!interestText || !levelText) {
+  if (!interestEl || !levelEl) {
     alert('Please select both an Interest and a Target Level!');
-    if (selectedInterest && interestGroup) interestGroup.classList.add('error-shake');
-    if (!interestText && interestGroup) {
-      var ig = document.getElementById('ob-interest-group');
-      if (ig) ig.classList.add('error-shake');
-    }
-    if (!levelText && levelGroup) {
-      var lg = document.getElementById('ob-level-group');
-      if (lg) lg.classList.add('error-shake');
-    }
-    setTimeout(function() {
-      if (interestGroup) interestGroup.classList.remove('error-shake');
-      if (levelGroup) levelGroup.classList.remove('error-shake');
-    }, 800);
     return;
   }
 
-  // Save profile to localStorage
-  var nameInput = document.getElementById('ob-name');
-  var name = nameInput ? nameInput.value.trim() : 'Speaker';
+  var selectedInterest = interestEl.getAttribute('data-value') || interestEl.textContent.trim().toLowerCase();
+  var selectedLevel = levelEl.getAttribute('data-value') || levelEl.textContent.trim().toLowerCase();
 
-  var profile = {
-    name: name,
-    interest: interestText.toLowerCase(),
-    level: levelText.toLowerCase(),
-    streakCount: 0
-  };
-  try {
-    localStorage.setItem('speakflow_profile', JSON.stringify(profile));
-  } catch (e) {}
-
-  // Switch views: hide onboarding, show practice
   var obView = document.getElementById('view-onboarding');
-  var dashboardView = document.getElementById('view-dashboard');
-  var practiceView = document.getElementById('view-practice');
-
-  if (obView) obView.style.display = 'none';
-  if (dashboardView) dashboardView.classList.add('active-view');
-  if (practiceView) {
-    practiceView.style.display = 'block';
-    practiceView.classList.add('active-view');
+  var pracView = document.getElementById('view-practice') || document.getElementById('view-dashboard');
+  if (obView && pracView) {
+    obView.style.display = 'none';
+    pracView.style.display = 'block';
+    pracView.classList.add('active-view');
   }
 
-  // Auto-load a topic based on selected interest & level
-  var interestLower = interestText.toLowerCase();
-  var levelLower = levelText.toLowerCase();
-  var selectedTopic = getRandomTopic(interestLower, levelLower);
+  if (typeof loadPracticeSession === 'function') {
+    loadPracticeSession(selectedInterest, selectedLevel);
+  }
+});
 
-  // Update Practice UI
-  var topicTitle = document.getElementById('prac-topic-title');
-  if (topicTitle) topicTitle.textContent = selectedTopic.title;
+// ============================================================
+// PRACTICE BUTTONS: Play Native Accent
+// ============================================================
 
-  var levelBadge = document.getElementById('prac-level-badge');
-  if (levelBadge) levelBadge.textContent = LEVEL_LABELS[levelLower] || levelText;
+document.addEventListener('click', function(e) {
+  var playBtn = e.target.closest('#prac-play');
+  if (!playBtn) return;
+  e.preventDefault();
 
-  var interestBadge = document.getElementById('prac-interest-badge');
-  if (interestBadge) interestBadge.textContent = INTEREST_LABELS[interestLower] || interestText;
+  var topic = window.currentActiveTopic;
+  if (!topic) return;
 
-  // Update topic paragraph for karaoke
-  var karaokeContainer = document.getElementById('karaoke-paragraph');
-  if (karaokeContainer) {
-    ui.prepareKaraoke(karaokeContainer, selectedTopic.paragraph);
+  if (speechEngine.isSpeaking()) {
+    speechEngine.stop();
+    playBtn.textContent = '▶ Play Native Accent';
+    return;
   }
 
-  // Update diagnostic display
-  var topicLevel = document.getElementById('prac-level-badge');
-  var topicInterest = document.getElementById('prac-interest-badge');
-  if (topicLevel) topicLevel.textContent = LEVEL_LABELS[levelLower] || levelText;
-  if (topicInterest) topicInterest.textContent = INTEREST_LABELS[interestLower] || interestText;
+  playBtn.textContent = '⏹ Stop Audio';
+  speechEngine.speak(topic.paragraph, currentPlaybackRate, function(word, idx) {
+    // Optional per-word callback
+  }, function() {
+    playBtn.textContent = '▶ Play Native Accent';
+  });
+});
+
+// ============================================================
+// PRACTICE BUTTONS: Record Voice
+// ============================================================
+
+document.addEventListener('click', function(e) {
+  var recBtn = e.target.closest('#prac-record');
+  if (!recBtn) return;
+  e.preventDefault();
+
+  var topic = window.currentActiveTopic;
+  if (!topic) {
+    alert('No topic loaded. Please start a new practice session.');
+    return;
+  }
+
+  if (!isRecording) {
+    // Start recording
+    recognizer = startRecording({
+      onResult: function(res) {
+        var recStatus = document.getElementById('rec-status');
+        if (recStatus) recStatus.textContent = 'Listening... (' + res.final.length + ' chars)';
+      },
+      onEnd: function(finalTranscript) {
+        currentTranscript = finalTranscript;
+        var recStatus = document.getElementById('rec-status');
+        if (recStatus) recStatus.textContent = 'Recording complete. Click Done to evaluate.';
+      },
+      onError: function(err) {
+        console.warn("[scorer] error:", err);
+        isRecording = false;
+        recBtn.classList.remove('recording');
+        recBtn.textContent = 'Record Voice';
+        var recStatus = document.getElementById('rec-status');
+        if (recStatus) recStatus.textContent = 'Speech recognition not available. Using simulation mode.';
+        // Auto-enable simulate: just set transcript to topic paragraph
+        currentTranscript = topic.paragraph;
+      }
+    });
+  } else {
+    // Stop recording
+    stopRecording();
+    var recStatus = document.getElementById('rec-status');
+    if (recStatus) recStatus.textContent = 'Recording stopped. Click Done to evaluate.';
+  }
+});
+
+// ============================================================
+// PRACTICE BUTTONS: Done / Evaluate
+// ============================================================
+
+document.addEventListener('click', function(e) {
+  var doneBtn = e.target.closest('#prac-done');
+  if (!doneBtn) return;
+  e.preventDefault();
+
+  // Stop any active recording/playback
+  stopRecording();
+  speechEngine.stop();
+
+  var topic = window.currentActiveTopic;
+  if (!topic) {
+    alert('No topic loaded.');
+    return;
+  }
+
+  var durationSeconds = recordingStartTime ? (Date.now() - recordingStartTime) / 1000 : 5;
+  var transcript = currentTranscript || "";
+
+  // Calculate 3-Pillar Score
+  var result = scoreParagraph(topic.paragraph, transcript, durationSeconds);
+
+  // Populate results view
+  var scoreEl = document.getElementById('res-score');
+  var dateEl = document.getElementById('res-date');
+  var topicEl = document.getElementById('res-topic');
+  var levelEl = document.getElementById('res-level');
+  var accPill = document.getElementById('res-acc-pill');
+  var accFill = document.getElementById('res-acc-fill');
+  var wpmPill = document.getElementById('res-wpm-pill');
+  var wpmFill = document.getElementById('res-wpm-fill');
+  var fillPill = document.getElementById('res-fill-pill');
+  var fillFill = document.getElementById('res-fill-fill');
+  var badgeText = document.getElementById('res-badge-text');
+  var scoreRing = document.getElementById('res-score-ring');
+  var breakdownList = document.getElementById('res-breakdown');
+
+  if (scoreEl) scoreEl.textContent = result.score;
+  if (dateEl) dateEl.textContent = new Date().toLocaleDateString();
+  if (topicEl) topicEl.textContent = topic.title;
+  if (levelEl) levelEl.textContent = LEVEL_LABELS[topic.level] || topic.level;
+  if (accPill) accPill.textContent = result.accuracy + '%';
+  if (accFill) accFill.style.width = result.accuracy + '%';
+  if (wpmPill) wpmPill.textContent = result.wpm + ' WPM';
+  if (wpmFill) {
+    wpmFill.style.width = Math.min(100, (result.wpm / 180) * 100) + '%';
+    wpmFill.className = 'diag-bar-fill' + (result.wpm < 80 || result.wpm > 170 ? ' error' : '');
+  }
+  if (fillPill) fillPill.textContent = result.fluencyScore;
+  if (fillFill) fillFill.style.width = Math.min(100, (result.fluencyScore / 20) * 100) + '%';
+
+  var badge = result.score >= 85 ? "🔥 Fluency Maestro" : result.score >= 70 ? "⚡ Rising Speaker" : result.score >= 50 ? "📈 Developing Speaker" : "🌱 Keep Practising";
+  if (badgeText) badgeText.textContent = badge;
+
+  if (scoreRing) {
+    var c = 2 * Math.PI * 42;
+    scoreRing.style.strokeDashoffset = c - (result.score / 100) * c;
+  }
+
+  if (breakdownList) {
+    breakdownList.innerHTML = "";
+    result.wordsReview.forEach(function(item) {
+      var d = document.createElement('div');
+      d.className = 'breakdown-item ' + item.status;
+      d.innerHTML = '<span class="breakdown-word">' + ui.escapeHtml(item.word) + '</span><span class="breakdown-tag ' + item.status + '">' + item.status.charAt(0).toUpperCase() + item.status.slice(1) + '</span>';
+      breakdownList.appendChild(d);
+    });
+  }
+
+  // Switch to results view
+  ui.showView('view-results');
+});
+
+// ============================================================
+// PRACTICE BUTTONS: Speed Toggle
+// ============================================================
+
+document.addEventListener('click', function(e) {
+  var speedBtn = e.target.closest('.rate-btn');
+  if (!speedBtn) return;
+  e.preventDefault();
+
+  currentPlaybackRate = parseFloat(speedBtn.dataset.rate) || 1.0;
+
+  var speedBtns = document.querySelectorAll('.rate-btn');
+  speedBtns.forEach(function(btn) {
+    btn.classList.remove('active');
+  });
+  speedBtn.classList.add('active');
+});
+
+// ============================================================
+// PRACTICE BUTTONS: Reset
+// ============================================================
+
+document.addEventListener('click', function(e) {
+  var resetBtn = e.target.closest('#prac-reset');
+  if (!resetBtn) return;
+  e.preventDefault();
+
+  speechEngine.stop();
+  stopRecording();
+
+  var playBtn = document.getElementById('prac-play');
+  if (playBtn) playBtn.textContent = '▶ Play Native Accent';
+
+  var recBtn = document.getElementById('prac-record');
+  var recLabel = document.getElementById('rec-label');
+  if (recBtn) {
+    recBtn.classList.remove('recording');
+    recBtn.textContent = 'Record Voice';
+  }
+  if (recLabel) recLabel.textContent = 'Press record and read the paragraph aloud.';
+
+  var waveEl = document.getElementById('rec-wave');
+  if (waveEl) waveEl.classList.add('hidden');
+
+  var recStatus = document.getElementById('rec-status');
+  if (recStatus) recStatus.textContent = 'Press record and read the paragraph aloud.';
+
+  currentTranscript = "";
+  recordingStartTime = null;
+  isRecording = false;
+
+  // Re-render karaoke
+  var topic = window.currentActiveTopic;
+  if (topic) {
+    renderTopicToPractice(topic);
+  }
+});
+
+// ============================================================
+// PRACTICE BUTTONS: Back to Dashboard
+// ============================================================
+
+document.addEventListener('click', function(e) {
+  var backBtn = e.target.closest('#prac-back');
+  if (!backBtn) return;
+  e.preventDefault();
+
+  stopRecording();
+  speechEngine.stop();
+  ui.showView("view-dashboard");
 });
 
 // ============================================================
 // ERROR HANDLING & VERSION INFO
 // ============================================================
 
-console.log("SpeakFlow v4.0 Loaded — Standalone JS (no module crashes)");
+console.log("SpeakFlow v5.0 Loaded — Standalone JS with practice rendering");
 
-// Ensure chips have minimum styling on page load
 document.addEventListener('DOMContentLoaded', function() {
   var chips = document.querySelectorAll('.chip');
   chips.forEach(function(chip) {
@@ -937,16 +1303,16 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
-// Fallback: if localStorage fails, just continue
 try { localStorage.setItem('_speakflow_test', 'ok'); localStorage.removeItem('_speakflow_test'); } catch(e) {}
 
-// Make globals available
 window.SpeakFlow = {
   INTEREST_LABELS: INTEREST_LABELS,
   LEVEL_LABELS: LEVEL_LABELS,
   defaultProfile: defaultProfile,
   getRandomTopic: getRandomTopic,
+  loadPracticeSession: loadPracticeSession,
   scoreParagraph: scoreParagraph,
   speechEngine: speechEngine,
-  ui: ui
+  ui: ui,
+  TOPICS: TOPICS
 };
