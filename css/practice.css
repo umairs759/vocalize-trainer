@@ -41,12 +41,13 @@
 }
 
 .karaoke-paragraph .karaoke-word.karaoke-active {
-  transform: scale(1.18);
-  background: var(--karaoke);
-  color: var(--karaoke-text);
-  font-weight: 700;
-  box-shadow: 0 0 14px rgba(255,235,59,0.8);
-  z-index: 2;
+  background: #ffeb3b !important;
+  color: #000000 !important;
+  font-weight: bold !important;
+  transform: scale(1.15) !important;
+  border-radius: 4px !important;
+  padding: 2px 4px !important;
+  z-index: 2 !important;
 }
 
 .karaoke-hint { margin-top: 1rem; font-size: 0.82rem; color: var(--text-dim); }

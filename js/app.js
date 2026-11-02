@@ -1,12 +1,11 @@
 /* ============================================================
    SpeakFlow — Consolidated Standalone Application (js/app.js)
    Single self-contained file — NO imports, NO exports.
-   Guaranteed to execute on GitHub Pages without module crashes.
-   Version: v5.0 Live
+   Version: v6.0 Fully Interactive Live
    ============================================================ */
 
 // ============================================================
-// SPEAKFLOW CORE DATA & CONFIGURATION
+// LABELS & CONFIG
 // ============================================================
 
 var INTEREST_LABELS = {
@@ -23,22 +22,17 @@ var LEVEL_LABELS = {
   advanced: "Advanced"
 };
 
-var defaultProfile = {
-  name: "",
-  age: 0,
-  interest: "daily_life",
-  level: "beginner",
-  streakCount: 0
-};
+// ============================================================
+// GLOBAL STATE
+// ============================================================
 
-// Global state
-var window = window || {};
 var currentActiveTopic = null;
 var currentPlaybackRate = 1.0;
 var currentTranscript = "";
 var recognizer = null;
-var recordingStartTime = null;
 var isRecording = false;
+var recordingStartTime = null;
+var currentUtterance = null;
 
 // ============================================================
 // KEY NORMALIZATION
@@ -46,293 +40,295 @@ var isRecording = false;
 
 function normalizeKey(str) {
   if (!str) return '';
-  return str.trim().toLowerCase().replace(/\s+/g, '_');
+  return str.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
 }
 
 // ============================================================
-// TOPICS DATABASE (15 scenarios across 5 interests × 3 levels)
+// MULTI-TOPIC DYNAMIC DATABASE (45+ unique scenarios: 5 × 3 × 3)
 // ============================================================
 
-var TOPICS = {
-  beginner: {
-    tech: [
+var TOPIC_DATABASE = {
+  daily_life: {
+    beginner: [
       {
-        id: "beginner-tech-smartphone",
+        title: "Morning Routine",
+        paragraph: "I wake up early in the morning and drink a glass of warm water. Then I brush my teeth and prepare a quick healthy breakfast before starting my day.",
+        vocab: { "healthy": { urdu: "صحت مند", synonym: "nutritious" }, "prepare": { urdu: "تیار کرنا", synonym: "make ready" } }
+      },
+      {
+        title: "A Visit to the Market",
+        paragraph: "Today I visited the local grocery market to buy fresh vegetables, fruits, and bread. The streets were busy and filled with friendly neighborhood vendors.",
+        vocab: { "grocery": { urdu: "کریانہ", synonym: "food store" }, "vendors": { urdu: "دکاندار", synonym: "sellers" } }
+      },
+      {
+        title: "My Favorite Weekend",
+        paragraph: "On weekends, I love relaxing at home with my family. We cook a delicious lunch together, watch a favorite movie, and enjoy evening tea in our garden.",
+        vocab: { "delicious": { urdu: "مزیدار", synonym: "tasty" }, "relaxing": { urdu: "سکون دہ", synonym: "resting" } }
+      }
+    ],
+    intermediate: [
+      {
+        title: "Cooking a New Recipe",
+        paragraph: "Last evening, I decided to try cooking pasta for the first time. I boiled water, added salt, and carefully stirred the noodles until they were soft enough to eat.",
+        vocab: { "decided": { urdu: "فaisla کیا", synonym: "chose" }, "stirred": { urdu: "هيلایا", synonym: "mixed" } }
+      },
+      {
+        title: "A Day at the Park",
+        paragraph: "The park was full of children playing and dogs running around. I sat on a bench under a tree and read a novel while enjoying the gentle breeze.",
+        vocab: { "novel": { urdu: "ناول", synonym: "book" }, "breeze": { urdu: "ہوا", synonym: "wind" } }
+      },
+      {
+        title: "Grocery Shopping List",
+        paragraph: "Before going to the store, I always write down a shopping list. Today I needed milk, eggs, sugar, and a few cleaning supplies for the kitchen.",
+        vocab: { "supplies": { urdu: "سامان", synonym: "items" }, "cleaning": { urdu: "صفائی", synonym: "washing" } }
+      }
+    ],
+    advanced: [
+      {
+        title: "Time Management Tips",
+        paragraph: "Effective time management requires planning each day in advance. I use a calendar to block out hours for work, exercise, and quality time with my family.",
+        vocab: { "effective": { urdu: "مؤثر", synonym: "successful" }, "advance": { urdu: "پہلے سے", synonym: "early" } }
+      },
+      {
+        title: "The Art of Listening",
+        paragraph: "Good listeners do not just wait for their turn to speak. They pay close attention to tone, body language, and the emotions behind every word spoken.",
+        vocab: { "emotions": { urdu: "جذبات", synonym: "feelings" }, "attention": { urdu: "توجہ", synonym: "focus" } }
+      },
+      {
+        title: "Urban Gardening",
+        paragraph: "Many city dwellers now grow vegetables on their balconies. With proper sunlight, water, and care, even a small space can produce fresh herbs and tomatoes.",
+        vocab: { "dwellers": { urdu: "باسی", synonym: "residents" }, "produce": { urdu: "پیدا کرنا", synonym: "grow" } }
+      }
+    ]
+  },
+  tech: {
+    beginner: [
+      {
         title: "My Smartphone",
-        interest: "tech",
-        level: "beginner",
-        paragraph:
-          "I use my smartphone every day. It helps me talk to my friends and family. I can take photos and watch videos on it. My phone also tells me the weather and the latest news.",
-        vocabulary: [
-          { word: "smartphone", urdu: "سمارٹ فون", synonym: "mobile phone", example: "I bought a new smartphone." },
-          { word: "friends", urdu: "دوست", synonym: "pals", example: "I meet my friends on weekends." },
-          { word: "photos", urdu: "تصاویر", synonym: "pictures", example: "I like taking photos." },
-          { word: "weather", urdu: "موسم", synonym: "climate", example: "The weather is sunny today." },
-          { word: "news", urdu: "خبریں", synonym: "updates", example: "I read the news every morning." }
-        ]
+        paragraph: "I use my smartphone every day. It helps me talk to my friends and family. I can take photos and watch videos on it. My phone also tells me the weather and the latest news.",
+        vocab: { "smartphone": { urdu: "سمارٹ فون", synonym: "mobile phone" }, "weather": { urdu: "موسم", synonym: "climate" } }
+      },
+      {
+        title: "Using a Laptop",
+        paragraph: "My laptop is light and easy to carry. I use it for schoolwork, watching movies, and chatting with friends online. The battery lasts for several hours.",
+        vocab: { "laptop": { urdu: "لیپ ٹاپ", synonym: "notebook" }, "battery": { urdu: "بیٹری", synonym: "power" } }
+      },
+      {
+        title: "Connecting to Wi-Fi",
+        paragraph: "To connect to the internet, I open the settings menu and choose the Wi-Fi network. After entering the password, the signal strength shows full bars.",
+        vocab: { "password": { urdu: "پاس ورڈ", synonym: "code" }, "signal": { urdu: "سگنل", synonym: "connection" } }
       }
     ],
-    daily_life: [
+    intermediate: [
       {
-        id: "beginner-daily-breakfast",
-        title: "My Breakfast",
-        interest: "daily_life",
-        level: "beginner",
-        paragraph:
-          "Every morning I eat a healthy breakfast. I drink a glass of milk and eat an egg with toast. Fruits give me energy for the whole day. I feel fresh after breakfast.",
-        vocabulary: [
-          { word: "breakfast", urdu: "ناشتہ", synonym: "morning meal", example: "Breakfast is my favorite meal." },
-          { word: "milk", urdu: "دودھ", synonym: "dairy", example: "I drink milk daily." },
-          { word: "fruits", urdu: "پھل", synonym: "produce", example: "Fruits are healthy." },
-          { word: "energy", urdu: "توانائی", synonym: "power", example: "I have lots of energy." }
-        ]
-      }
-    ],
-    business: [
-      {
-        id: "beginner-business-meeting",
-        title: "The Morning Meeting",
-        interest: "business",
-        level: "beginner",
-        paragraph:
-          "We have a meeting every Monday at nine o'clock. The manager talks about the new project. Everyone shares their ideas and updates. We finish the meeting by eleven.",
-        vocabulary: [
-          { word: "meeting", urdu: "میٹنگ", synonym: "gathering", example: "We have a team meeting." },
-          { word: "manager", urdu: "منیجر", synonym: "supervisor", example: "Our manager is kind." },
-          { word: "project", urdu: "پروجیکٹ", synonym: "plan", example: "The project is due soon." },
-          { word: "ideas", urdu: "ایڈیاز", synonym: "thoughts", example: "She has good ideas." }
-        ]
-      }
-    ],
-    fitness: [
-      {
-        id: "beginner-fitness-walk",
-        title: "Morning Walk",
-        interest: "fitness",
-        level: "beginner",
-        paragraph:
-          "I walk for thirty minutes every morning. It keeps my heart healthy and my mind clear. I wear comfortable shoes and carry a bottle of water. Walking makes me active all day.",
-        vocabulary: [
-          { word: "walk", urdu: "سیر", synonym: "stroll", example: "I go for a walk." },
-          { word: "healthy", urdu: "tandrust", synonym: "fit", example: "I eat healthy food." },
-          { word: "shoes", urdu: "جوتے", synonym: "footwear", example: "My shoes are new." },
-          { word: "water", urdu: "پانی", synonym: "liquid", example: "Drink more water." }
-        ]
-      }
-    ],
-    cinema: [
-      {
-        id: "beginner-cinema-movie",
-        title: "My Favorite Movie",
-        interest: "cinema",
-        level: "beginner",
-        paragraph:
-          "I love watching movies in my free time. The story was exciting and the actors were great. I watched it with my family and we talked about it afterward. It was a wonderful experience.",
-        vocabulary: [
-          { word: "movie", urdu: "مموری", synonym: "film", example: "I watched a movie." },
-          { word: "story", urdu: "کاہانی", synonym: "tale", example: "The story was good." },
-          { word: "actors", urdu: "آکرز", synonym: "performers", example: "The actors were great." },
-          { word: "family", urdu: "خاندان", synonym: "relatives", example: "I watched with family." },
-          { word: "experience", urdu: "تجربه", synonym: "experience", example: "A wonderful experience." }
-        ]
-      }
-    ]
-  },
-  intermediate: {
-    tech: [
-      {
-        id: "intermediate-tech-apps",
         title: "Mobile Apps",
-        interest: "tech",
-        level: "intermediate",
-        paragraph:
-          "Mobile apps have become part of our daily routine. We use them to order food, book rides, and chat with friends. Some apps help us learn new languages every day. A good app should be fast and easy to use.",
-        vocabulary: [
-          { word: "routine", urdu: "روزانہ کا کام", synonym: "habit", example: "It is my daily routine." },
-          { word: "language", urdu: "زبان", synonym: "tongue", example: "I learn a new language." },
-          { word: "easy", urdu: "آسان", synonym: "simple", example: "This app is easy." },
-          { word: "fast", urdu: "tez", synonym: "quick", example: "The service is fast." }
-        ]
+        paragraph: "Mobile apps have become part of our daily routine. We use them to order food, book rides, and chat with friends. Some apps help us learn new languages every day.",
+        vocab: { "routine": { urdu: "روزانہ کا کام", synonym: "habit" }, "language": { urdu: "زبان", synonym: "tongue" } }
+      },
+      {
+        title: "Online Shopping",
+        paragraph: "Buying clothes online is convenient but sometimes the size does not fit. I always check the return policy before placing an order on a new website.",
+        vocab: { "convenient": { urdu: "آسان", synonym: "easy" }, "policy": { urdu: "نظام", synonym: "rule" } }
+      },
+      {
+        title: "Video Calls",
+        paragraph: "Video calls let me see my family even when they live far away. We can talk face to face, share screens, and celebrate birthdays together virtually.",
+        vocab: { "virtually": { urdu: "افتراضی طور پر", synonym: "online" }, "celebrate": { urdu: "منانا", synonym: "honor" } }
       }
     ],
-    daily_life: [
+    advanced: [
       {
-        id: "intermediate-daily-cooking",
-        title: "Cooking Dinner",
-        interest: "daily_life",
-        level: "intermediate",
-        paragraph:
-          "Cooking dinner is my favorite way to relax after work. I chop vegetables and stir them in a hot pan. The smell of spices fills the whole kitchen. My family always praises the taste of the food.",
-        vocabulary: [
-          { word: "vegetables", urdu: "سبزیاں", synonym: "produce", example: "I eat vegetables." },
-          { word: "spices", urdu: "مسالے", synonym: "seasoning", example: "Spices add flavor." },
-          { word: "kitchen", urdu: "باورچی خانہ", synonym: "cookroom", example: "I work in the kitchen." },
-          { word: "taste", urdu: "ذائقہ", synonym: "flavor", example: "The taste is great." }
-        ]
-      }
-    ],
-    business: [
+        title: "Artificial Intelligence",
+        paragraph: "Artificial intelligence is changing how we live and work. It can write text, generate images, and answer difficult questions. Learning to use AI wisely is an important skill today.",
+        vocab: { "intelligence": { urdu: "ذہانت", synonym: "smartness" }, "opportunities": { urdu: "موقع", synonym: "chances" } }
+      },
       {
-        id: "intermediate-business-email",
-        title: "Writing Emails",
-        interest: "business",
-        level: "intermediate",
-        paragraph:
-          "Writing clear emails is essential in a modern office. I always start with a polite greeting and state the purpose early. Short paragraphs make the message easier to read. I proofread before I click send.",
-        vocabulary: [
-          { word: "essential", urdu: "لازمے", synonym: "necessary", example: "Water is essential." },
-          { word: "greeting", urdu: "سلام", synonym: "salutation", example: "A polite greeting." },
-          { word: "purpose", urdu: "مقصد", synonym: "aim", example: "What is the purpose?" },
-          { word: "proofread", urdu: "پروف ریڈ کرنا", synonym: "check", example: "I proofread my email." }
-        ]
-      }
-    ],
-    fitness: [
+        title: "Cybersecurity Basics",
+        paragraph: "Protecting personal data online is more important than ever. I use strong passwords, enable two-factor authentication, and avoid clicking suspicious links.",
+        vocab: { "authentication": { urdu: "تصدیق", synonym: "verification" }, "suspicious": { urdu: "شبہناک", synonym: "doubtful" } }
+      },
       {
-        id: "intermediate-fitness-gym",
-        title: "Gym Routine",
-        interest: "fitness",
-        level: "intermediate",
-        paragraph:
-          "I go to the gym three times a week to stay fit. Lifting weights makes my muscles stronger over time. I drink plenty of water between sets to stay hydrated. A good workout leaves me tired but satisfied.",
-        vocabulary: [
-          { word: "gym", urdu: "جیْم", synonym: "fitness center", example: "I go to the gym." },
-          { word: "weights", urdu: "وزن", synonym: "dumbbells", example: "I lift weights." },
-          { word: "muscles", urdu: "پٹھے", synonym: "flesh", example: "Strong muscles." },
-          { word: "hydrated", urdu: "پانی پرور", synonym: "moist", example: "Stay hydrated." }
-        ]
-      }
-    ],
-    cinema: [
-      {
-        id: "intermediate-cinema-review",
-        title: "Movie Review",
-        interest: "cinema",
-        level: "intermediate",
-        paragraph:
-          "The film I saw last week had an amazing soundtrack and beautiful cinematography. The plot kept me guessing until the very end. I would highly recommend it to anyone who enjoys thoughtful drama. The direction was superb.",
-        vocabulary: [
-          { word: "soundtrack", urdu: "اساؤنڈ ٹرک", synonym: "music", example: "The soundtrack was great." },
-          { word: "cinematography", urdu: "سینیمائوگرافی", synonym: "photography", example: "Beautiful shots." },
-          { word: "plot", urdu: "quet", synonym: "story", example: "The plot was tight." },
-          { word: "highly", urdu: "زیادہ", synonym: "very", example: "I highly recommend it." },
-          { word: "recommend", urdu: "mosanِn", synonym: "suggest", example: "I recommend this." }
-        ]
+        title: "Cloud Storage",
+        paragraph: "Cloud storage lets me save files on remote servers instead of my computer. I can access my photos and documents from any device with an internet connection.",
+        vocab: { "servers": { urdu: "سرورز", synonym: "computers" }, "access": { urdu: "رسائی", synonym: "entry" } }
       }
     ]
   },
-  advanced: {
-    tech: [
+  business: {
+    beginner: [
       {
-        id: "advanced-tech-ai",
-        title: "Artificial Intelligence",
-        interest: "tech",
-        level: "advanced",
-        paragraph:
-          "Artificial intelligence is changing how we live and work. It can write text, generate images, and answer difficult questions. Many people worry about jobs, but AI also creates new opportunities. Learning to use AI wisely is an important skill today.",
-        vocabulary: [
-          { word: "artificial", urdu: "مصنوعی", synonym: "human-made", example: "Artificial intelligence." },
-          { word: "intelligence", urdu: "ذہانت", synonym: "smartness", example: "Human intelligence." },
-          { word: "opportunities", urdu: "موقع", synonym: "chances", example: "New opportunities." },
-          { word: "skill", urdu: "ہنر", synonym: "ability", example: "A useful skill." },
-          { word: "questions", urdu: "سوالات", synonym: "queries", example: "Difficult questions." }
-        ]
+        title: "The Morning Meeting",
+        paragraph: "We have a meeting every Monday at nine o'clock. The manager talks about the new project. Everyone shares their ideas and updates. We finish the meeting by eleven.",
+        vocab: { "manager": { urdu: "منیجر", synonym: "supervisor" }, "project": { urdu: "پروجیکٹ", synonym: "plan" } }
+      },
+      {
+        title: "Writing an Email",
+        paragraph: "I write emails to my colleagues every day. A good email has a clear subject line, a polite greeting, and a short message that gets to the point quickly.",
+        vocab: { "colleagues": { urdu: "سہی WORKFLOW", synonym: "coworkers" }, "subject": { urdu: "موضوع", synonym: "topic" } }
+      },
+      {
+        title: "Office Supplies",
+        paragraph: "Our office needs new supplies every month. We order paper, pens, folders, and printer ink. Keeping track of inventory helps us avoid running out of essentials.",
+        vocab: { "supplies": { urdu: "سامان", synonym: "items" }, "inventory": { urdu: "استOCK", synonym: "stock" } }
       }
     ],
-    daily_life: [
+    intermediate: [
       {
-        id: "advanced-daily-budget",
-        title: "Managing a Budget",
-        interest: "daily_life",
-        level: "advanced",
-        paragraph:
-          "Managing a monthly budget requires discipline and careful planning. I track every expense in a spreadsheet to avoid overspending. Saving a small amount regularly builds a safety fund. Financial freedom starts with knowing where your money goes.",
-        vocabulary: [
-          { word: "budget", urdu: "بجٹ", synonym: "plan", example: "Monthly budget." },
-          { word: "expense", urdu: "اخراجات", synonym: "cost", example: "Living expense." },
-          { word: "saving", urdu: "بچت", synonym: "reserve", example: "Regular saving." },
-          { word: "discipline", urdu: "انضباط", synonym: "control", example: "Self discipline." },
-          { word: "freedom", urdu: "آزادی", synonym: "liberty", example: "Financial freedom." }
-        ]
+        title: "Writing Emails",
+        paragraph: "Writing clear emails is essential in a modern office. I always start with a polite greeting and state the purpose early. Short paragraphs make the message easier to read.",
+        vocab: { "essential": { urdu: "لازمی", synonym: "necessary" }, "purpose": { urdu: "مقصد", synonym: "aim" } }
+      },
+      {
+        title: "Team Collaboration",
+        paragraph: "Successful teams collaborate by sharing ideas openly and giving constructive feedback. Weekly check-ins help everyone stay aligned and motivated toward common goals.",
+        vocab: { "constructive": { urdu: " تعمیراتی", synonym: "helpful" }, "aligned": { urdu: "ہم آہنگ", synonym: "united" } }
+      },
+      {
+        title: "Project Deadlines",
+        paragraph: "Meeting project deadlines requires good planning and daily progress tracking. If a task takes longer than expected, I inform the team leader immediately.",
+        vocab: { "deadlines": { urdu: "آخری تاریخ", synonym: "limits" }, "progress": { urdu: "ترقی", synonym: "advancement" } }
       }
     ],
-    business: [
+    advanced: [
       {
-        id: "advanced-business-negotiation",
         title: "Business Negotiation",
-        interest: "business",
-        level: "advanced",
-        paragraph:
-          "Successful negotiation requires listening more than speaking. I focus on creating value for both parties instead of winning alone. Patience and empathy often lead to better agreements. A signed contract is only the beginning of the relationship.",
-        vocabulary: [
-          { word: "negotiation", urdu: "مذاکرات", synonym: "discussion", example: "Business negotiation." },
-          { word: "parties", urdu: "فریق", synonym: "sides", example: "Both parties agreed." },
-          { word: "empathy", urdu: "ہمدردی", synonym: "understanding", example: "Show empathy." },
-          { word: "agreement", urdu: "معاہدہ", synonym: "deal", example: "A legal agreement." },
-          { word: "contract", urdu: "کنٹریکٹ", synonym: "pact", example: "Sign the contract." }
-        ]
+        paragraph: "Successful negotiation requires listening more than speaking. I focus on creating value for both parties instead of winning alone. Patience and empathy lead to better agreements.",
+        vocab: { "negotiation": { urdu: "مذاکرات", synonym: "discussion" }, "empathy": { urdu: "ہمدردی", synonym: "understanding" } }
+      },
+      {
+        title: "Leadership Skills",
+        paragraph: "Great leaders inspire their teams by setting a clear vision and leading by example. They delegate tasks wisely and trust their team members to deliver results.",
+        vocab: { "vision": { urdu: "منظر", synonym: "goal" }, "delegate": { urdu: "وَکالت", synonym: "assign" } }
+      },
+      {
+        title: "Market Expansion",
+        paragraph: "Expanding into a new market requires research on local culture, customer preferences, and competition. A well-planned strategy reduces financial risk significantly.",
+        vocab: { "preferences": { urdu: "ترجیح", synonym: "choices" }, "strategy": { urdu: "حکمت عملی", synonym: "plan" } }
+      }
+    ]
+  },
+  fitness: {
+    beginner: [
+      {
+        title: "Morning Walk",
+        paragraph: "I walk for thirty minutes every morning. It keeps my heart healthy and my mind clear. I wear comfortable shoes and carry a bottle of water. Walking makes me active all day.",
+        vocab: { "healthy": { urdu: "صحت مند", synonym: "fit" }, "active": { urdu: "فعال", synonym: "energetic" } }
+      },
+      {
+        title: "Drinking Water",
+        paragraph: "Drinking enough water is important for good health. I carry a water bottle with me everywhere and try to drink at least eight glasses every day.",
+        vocab: { "bottle": { urdu: "بوتل", synonym: "container" }, "glasses": { urdu: "گلس", synonym: "cups" } }
+      },
+      {
+        title: "Stretching Exercises",
+        paragraph: "Before I start my day, I do simple stretching exercises for five minutes. This helps my muscles feel relaxed and prevents soreness after physical activity.",
+        vocab: { "stretching": { urdu: "مڑna", synonym: "extending" }, "soreness": { urdu: "درد", synonym: "pain" } }
       }
     ],
-    cinema: [
+    intermediate: [
       {
-        id: "advanced-cinema-classic",
+        title: "Gym Routine",
+        paragraph: "I go to the gym three times a week to stay fit. Lifting weights makes my muscles stronger over time. I drink plenty of water between sets to stay hydrated.",
+        vocab: { "gym": { urdu: "جیِم", synonym: "fitness center" }, "hydrated": { urdu: "پانی پرور", synonym: "moist" } }
+      },
+      {
+        title: "Running Outdoors",
+        paragraph: "Running in the park is better than using a treadmill. The fresh air and natural scenery keep me motivated. I usually run for about thirty minutes.",
+        vocab: { "treadmill": { urdu: "دौڑنے کی مشین", synonym: "running machine" }, "motivated": { urdu: "ہिमت", synonym: "inspired" } }
+      },
+      {
+        title: "Healthy Eating",
+        paragraph: "Eating healthy means choosing fruits, vegetables, and whole grains over processed foods. I plan my meals ahead of time to avoid unhealthy snacks.",
+        vocab: { "processed": { urdu: "پروسیسڈ", synonym: "refined" }, "snacks": { urdu: "ناشتہ", synonym: "light food" } }
+      }
+    ],
+    advanced: [
+      {
+        title: "Training for a Marathon",
+        paragraph: "Training for a marathon tests both physical endurance and mental strength. I increase my running distance gradually every week. Proper nutrition and rest are just as important as the runs.",
+        vocab: { "endurance": { urdu: "برداشت", synonym: "stamina" }, "gradually": { urdu: "آہستہ آہستہ", synonym: "slowly" } }
+      },
+      {
+        title: "Yoga for Stress Relief",
+        paragraph: "Yoga combines breathing exercises, meditation, and physical poses. Practicing yoga for twenty minutes daily helps reduce stress and improves flexibility.",
+        vocab: { "meditation": { urdu: "مراقبت", synonym: "contemplation" }, "flexibility": { urdu: "لچک", synonym: "bendiness" } }
+      },
+      {
+        title: "Strength Training",
+        paragraph: "Strength training builds muscle and increases bone density. I use dumbbells, resistance bands, and my own body weight to perform various exercises weekly.",
+        vocab: { "density": { urdu: "گندگی", synonym: "compactness" }, "resistance": { urdu: "مقاومتی", synonym: "opposition" } }
+      }
+    ]
+  },
+  cinema: {
+    beginner: [
+      {
+        title: "My Favorite Movie",
+        paragraph: "I love watching movies in my free time. The story was exciting and the actors were great. I watched it with my family and we talked about it afterward.",
+        vocab: { "exciting": { urdu: "uronجànk", synonym: "thrilling" }, "afterward": { urdu: "بعد میں", synonym: "later" } }
+      },
+      {
+        title: "Going to the Cinema",
+        paragraph: "Going to the cinema with friends is fun. We buy tickets, get popcorn and drinks, and find good seats in the middle of the theater.",
+        vocab: { "tickets": { urdu: "ٹکٹ", synonym: "passes" }, "theater": { urdu: "سنیما", synonym: "hall" } }
+      },
+      {
+        title: "Movie Night at Home",
+        paragraph: "On Friday nights, my family watches a movie at home. We turn off the lights, make popcorn, and enjoy the film together on the big screen.",
+        vocab: { "family": { urdu: "خاندان", synonym: "relatives" }, "enjoy": { urdu: "لطف اٹھانا", synonym: "like" } }
+      }
+    ],
+    intermediate: [
+      {
+        title: "Movie Review",
+        paragraph: "The film I saw last week had an amazing soundtrack and beautiful cinematography. The plot kept me guessing until the very end. I would highly recommend it.",
+        vocab: { "soundtrack": { urdu: "اساؤنڈ ٹرک", synonym: "music" }, "cinematography": { urdu: "سینیمائوگرافی", synonym: "photography" } }
+      },
+      {
+        title: "Classic Films",
+        paragraph: "Classic black and white films have a special charm. The acting styles were different from modern movies, but the stories still feel relevant today.",
+        vocab: { "charm": { urdu: "مと呼ばれている", synonym: "attraction" }, "relevant": { urdu: "مبہمت", synonym: "important" } }
+      },
+      {
+        title: "Film Genres",
+        paragraph: "I enjoy watching science fiction films because they explore futuristic ideas and technology. Documentaries are also interesting because they show real life stories.",
+        vocab: { "futuristic": { urdu: "مستقبل کا", synonym: "advanced" }, "documentaries": { urdu: "دستاویزی فلمیں", synonym: "films" } }
+      }
+    ],
+    advanced: [
+      {
         title: "Classic Cinema",
-        interest: "cinema",
-        level: "advanced",
-        paragraph:
-          "Classic cinema from the golden era continues to inspire modern filmmakers. The storytelling techniques developed decades ago are still studied today. I appreciate the artistry and craftsmanship of those early films. Their influence can be seen in contemporary works.",
-        vocabulary: [
-          { word: "classic", urdu: "پیشistory", synonym: "timeless", example: "A classic film." },
-          { word: "cinema", urdu: "سینما", synonym: "film", example: "Cinema history." },
-          { word: "filmmakers", urdu: "فلم_exec", synonym: "directors", example: "Modern filmmakers." },
-          { word: "storytelling", urdu: "ursday", synonym: "narrative", example: "Story techniques." },
-          { word: "influence", urdu: "تحریک", synonym: "impact", example: "Cultural influence." }
-        ]
+        paragraph: "Classic cinema from the golden era continues to inspire modern filmmakers. The storytelling techniques developed decades ago are still studied today. Their influence can be seen in contemporary works.",
+        vocab: { "storytelling": { urdu: "کہانی سننا", synonym: "narrative" }, "influence": { urdu: "تحریک", synonym: "impact" } }
+      },
+      {
+        title: "Film Directing",
+        paragraph: "A film director guides the actors, chooses camera angles, and oversees editing. Great directors have a unique vision that shapes the entire movie experience.",
+        vocab: { "director": { urdu: "ڈائریکٹر", synonym: "filmmaker" }, "vision": { urdu: "منظر", synonym: "goal" } }
+      },
+      {
+        title: "Film Festivals",
+        paragraph: "International film festivals showcase independent movies from around the world. Winning an award at a major festival can launch a filmmaker's career.",
+        vocab: { "festivals": { urdu: "تبصریاں", synonym: "events" }, "launch": { urdu: "شروع کرنا", synonym: "start" } }
       }
     ]
   }
 };
 
 // ============================================================
-// TOPIC LOADER
+// TOPIC SELECTOR
 // ============================================================
 
-function getRandomTopic(interest, level) {
-  var levelKey = normalizeKey(level);
-  var interestKey = normalizeKey(interest);
-  var levelTopics = TOPICS[levelKey];
-  if (!levelTopics) return fallbackTopic();
-
-  var pool = interestKey && levelTopics[interestKey]
-    ? levelTopics[interestKey]
-    : Object.values(levelTopics).flat();
-
-  if (!pool || pool.length === 0) return fallbackTopic();
-
-  var topic = pool[Math.floor(Math.random() * pool.length)];
+function getRandomTopic(category, level) {
+  var catKey = category.trim().toLowerCase().replace(/\s+/g, '_');
+  var lvlKey = level.trim().toLowerCase().replace(/\s+/g, '_');
+  var pool = (TOPIC_DATABASE[catKey] && TOPIC_DATABASE[catKey][lvlKey])
+    || TOPIC_DATABASE['daily_life']['beginner'];
+  var randomIndex = Math.floor(Math.random() * pool.length);
   return {
-    id: topic.id,
-    title: topic.title,
-    interest: topic.interest,
-    level: topic.level,
-    paragraph: topic.paragraph,
-    vocabulary: (topic.vocabulary || []).map(function(v) { return { word: v.word, urdu: v.urdu, synonym: v.synonym, example: v.example }; })
-  };
-}
-
-function fallbackTopic() {
-  return {
-    id: "fallback-daily",
-    title: "Daily Practice",
-    interest: "daily_life",
-    level: "beginner",
-    paragraph:
-      "Practice makes perfect. Speak a little every day and your English will improve. Be patient with yourself and enjoy the journey of learning.",
-    vocabulary: [
-      { word: "practice", urdu: "مشق", synonym: "rehearsal", example: "Daily practice helps." },
-      { word: "improve", urdu: "بہتر ہونا", synonym: "get better", example: "I want to improve." },
-      { word: "patient", urdu: "صبور", synonym: "calm", example: "Be patient." }
-    ]
+    topic: pool[randomIndex],
+    category: catKey,
+    level: lvlKey
   };
 }
 
@@ -340,70 +336,22 @@ function fallbackTopic() {
 // LOAD PRACTICE SESSION (Main Entry from Onboarding)
 // ============================================================
 
-function loadPracticeSession(interestRaw, levelRaw) {
-  var interest = normalizeKey(interestRaw) || 'daily_life';
-  var level = normalizeKey(levelRaw) || 'beginner';
+function initPracticeSession(interestRaw, levelRaw) {
+  var result = getRandomTopic(interestRaw, levelRaw);
+  currentActiveTopic = result.topic;
 
-  var topic = null;
-  if (TOPICS[interest] && TOPICS[interest][level]) {
-    topic = TOPICS[interest][level][0]; // Take first topic for that interest+level
-  } else {
-    // Fail-safe: pick first available topic so paragraph is NEVER blank
-    var firstCat = Object.keys(TOPICS)[0];
-    topic = TOPICS[firstCat][Object.keys(TOPICS[firstCat])[0]][0];
-  }
+  // Update practice view badges
+  var levelBadge = document.getElementById('prac-level-badge');
+  var interestBadge = document.getElementById('prac-interest-badge');
+  if (levelBadge) levelBadge.textContent = LEVEL_LABELS[result.level] || levelRaw;
+  if (interestBadge) interestBadge.textContent = INTEREST_LABELS[result.category] || interestRaw;
 
-  window.currentActiveTopic = topic;
-  renderTopicToPractice(topic);
-}
-
-// ============================================================
-// RENDER TOPIC TO PRACTICE VIEW
-// ============================================================
-
-function renderTopicToPractice(topic) {
   // Update topic title
   var topicTitle = document.getElementById('prac-topic-title');
-  if (topicTitle) topicTitle.textContent = topic.title;
-
-  // Update level badge
-  var levelBadge = document.getElementById('prac-level-badge');
-  if (levelBadge) levelBadge.textContent = LEVEL_LABELS[topic.level] || topic.level;
-
-  // Update interest badge
-  var interestBadge = document.getElementById('prac-interest-badge');
-  if (interestBadge) interestBadge.textContent = INTEREST_LABELS[topic.interest] || topic.interest;
+  if (topicTitle) topicTitle.textContent = result.topic.title;
 
   // Render paragraph words into karaoke container
-  var karaokeContainer = document.getElementById('karaoke-paragraph');
-  if (karaokeContainer) {
-    karaokeContainer.innerHTML = '';
-    var words = topic.paragraph.split(/\s+/);
-    words.forEach(function(w, i) {
-      var span = document.createElement('span');
-      span.textContent = w;
-      span.className = 'karaoke-word';
-      span.dataset.index = i;
-      span.dataset.word = w;
-      span.tabIndex = 0;
-
-      // Tap-to-translate Urdu popup
-      span.addEventListener('click', function(e) {
-        e.stopPropagation();
-        showUrduPopup(span, topic.vocabulary);
-      });
-
-      span.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          span.click();
-        }
-      });
-
-      karaokeContainer.appendChild(span);
-      if (i < words.length - 1) karaokeContainer.appendChild(document.createTextNode(' '));
-    });
-  }
+  renderParagraphWords(result.topic.paragraph);
 
   // Reset UI state
   currentTranscript = "";
@@ -433,8 +381,48 @@ function renderTopicToPractice(topic) {
   var waveEl = document.getElementById('rec-wave');
   if (waveEl) waveEl.classList.add('hidden');
 
-  // Initialize Urdu popup
-  initUrduPopup(topic.vocabulary);
+  // Hide live transcript
+  var liveTranscript = document.getElementById('live-transcript');
+  if (liveTranscript) liveTranscript.style.display = 'none';
+}
+
+// ============================================================
+// RENDER PARAGRAPH WORDS
+// ============================================================
+
+function renderParagraphWords(paragraph) {
+  var container = document.getElementById('karaoke-paragraph');
+  if (!container) return;
+
+  container.innerHTML = '';
+  var words = paragraph.split(/\s+/);
+  words.forEach(function(w, i) {
+    var cleanWord = w.replace(/[.,;:!?"'()\[\]{}\\/-]/g, '');
+    var span = document.createElement('span');
+    span.textContent = w;
+    span.className = 'karaoke-word';
+    span.id = 'kw-' + i;
+    span.dataset.index = i;
+    span.dataset.word = cleanWord.toLowerCase();
+    span.tabIndex = 0;
+
+    // Tap-to-translate Urdu popup
+    var vocab = currentActiveTopic && currentActiveTopic.vocab ? currentActiveTopic.vocab : null;
+    span.addEventListener('click', function(e) {
+      e.stopPropagation();
+      showUrduPopup(span, cleanWord, vocab);
+    });
+
+    span.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        span.click();
+      }
+    });
+
+    container.appendChild(span);
+    if (i < words.length - 1) container.appendChild(document.createTextNode(' '));
+  });
 }
 
 // ============================================================
@@ -447,10 +435,8 @@ var urduPopup = {
   urduEl: null,
   synEl: null,
   exEl: null,
-  vocab: [],
 
-  init: function(vocabulary) {
-    this.vocab = vocabulary || [];
+  init: function() {
     this.container = document.getElementById('word-tooltip');
     this.wordEl = document.getElementById('tooltip-word');
     this.urduEl = document.getElementById('tooltip-urdu');
@@ -482,13 +468,19 @@ var urduPopup = {
     if (!this.container) return;
 
     this.wordEl.textContent = word;
-    if (vocabData && vocabData.urdu) this.urduEl.textContent = vocabData.urdu;
+
+    var v = null;
+    if (vocabData) {
+      v = vocabData[word.toLowerCase()] || vocabData[word];
+    }
+
+    if (v && v.urdu) this.urduEl.textContent = v.urdu;
     else this.urduEl.textContent = '';
 
-    if (vocabData && vocabData.synonym) this.synEl.textContent = 'Synonym: ' + vocabData.synonym;
+    if (v && v.synonym) this.synEl.textContent = 'Synonym: ' + v.synonym;
     else this.synEl.textContent = '';
 
-    if (vocabData && vocabData.example) this.exEl.textContent = 'Example: ' + vocabData.example;
+    if (v && v.example) this.exEl.textContent = 'Example: ' + v.example;
     else this.exEl.textContent = '';
 
     var rect = targetSpan.getBoundingClientRect();
@@ -506,20 +498,14 @@ var urduPopup = {
   }
 };
 
-function initUrduPopup(vocabulary) {
-  urduPopup.init(vocabulary);
-}
-
-function showUrduPopup(targetSpan, vocabulary) {
-  var word = targetSpan.textContent.trim();
-  var vocabData = null;
-  if (vocabulary) {
-    vocabData = vocabulary.find(function(v) {
-      return v.word.toLowerCase() === word.toLowerCase();
-    });
-  }
+function showUrduPopup(targetSpan, word, vocabData) {
   urduPopup.show(targetSpan, word, vocabData);
 }
+
+// Initialize Urdu popup on load
+document.addEventListener('DOMContentLoaded', function() {
+  urduPopup.init();
+});
 
 // ============================================================
 // SPEECH SYNTHESIS ENGINE (Karaoke + TTS)
@@ -539,6 +525,7 @@ var speechEngine = {
     if (synthesisSupported) {
       try { synth.cancel(); } catch (e) { console.warn("[speech-engine] cancel failed", e); }
     }
+    currentUtterance = null;
   },
 
   speak: function(paragraph, rate, onWordHighlight, onEnd) {
@@ -549,15 +536,15 @@ var speechEngine = {
       return;
     }
 
-    var utterance = new SpeechSynthesisUtterance(paragraph);
-    utterance.rate = rate || currentPlaybackRate;
-    utterance.lang = 'en-US';
+    currentUtterance = new SpeechSynthesisUtterance(paragraph);
+    currentUtterance.rate = rate || currentPlaybackRate;
+    currentUtterance.lang = 'en-US';
 
     var words = paragraph.split(/\s+/);
     var wordSpans = document.querySelectorAll('#karaoke-paragraph .karaoke-word');
     var activeIndex = -1;
 
-    utterance.onboundary = function(event) {
+    currentUtterance.onboundary = function(event) {
       if (event.name !== 'word' && event.name !== 'sentence') return;
       var charIndex = event.charIndex;
       var cumulative = 0;
@@ -586,7 +573,7 @@ var speechEngine = {
       }
     };
 
-    utterance.onend = function() {
+    currentUtterance.onend = function() {
       // Reset highlights
       wordSpans.forEach(function(span) { span.classList.remove('karaoke-active'); });
 
@@ -597,14 +584,16 @@ var speechEngine = {
       if (onEnd) onEnd();
     };
 
-    utterance.onerror = function(err) {
+    currentUtterance.onerror = function(err) {
       console.warn("[speech-engine] utterance error", err);
       wordSpans.forEach(function(span) { span.classList.remove('karaoke-active'); });
+      var playBtn = document.getElementById('prac-play');
+      if (playBtn) playBtn.textContent = '▶ Play Native Accent';
       if (onEnd) onEnd();
     };
 
     try {
-      synth.speak(utterance);
+      synth.speak(currentUtterance);
     } catch (err) {
       console.warn("[speech-engine] speak failed", err);
       if (onEnd) onEnd();
@@ -644,6 +633,13 @@ function startRecording(options) {
     }
     if (options.onResult) options.onResult({ final: finalTranscript, interim });
     currentTranscript = finalTranscript;
+
+    // Update live transcript box
+    var liveBox = document.getElementById('live-transcript');
+    if (liveBox) {
+      liveBox.style.display = 'block';
+      liveBox.textContent = finalTranscript || interim;
+    }
   };
 
   recognizer.onend = function() {
@@ -679,11 +675,17 @@ function startRecording(options) {
     var recLabel = document.getElementById('rec-label');
     if (recBtn) {
       recBtn.classList.add('recording');
-      recBtn.textContent = 'Listening... (Click to Stop)';
+      recBtn.textContent = 'Listening... (Click to Finish)';
     }
     if (recLabel) recLabel.textContent = 'Listening... Speak now.';
     var waveEl = document.getElementById('rec-wave');
     if (waveEl) waveEl.classList.remove('hidden');
+
+    var liveBox = document.getElementById('live-transcript');
+    if (liveBox) {
+      liveBox.style.display = 'block';
+      liveBox.textContent = 'Listening for your voice...';
+    }
 
     return recognizer;
   } catch (err) {
@@ -839,6 +841,85 @@ function buildFeedback(total, accuracyRaw, wpm, fillerCount) {
 }
 
 // ============================================================
+// EVALUATE SPEECH (Done / Evaluate Button)
+// ============================================================
+
+function evaluateSpeech() {
+  // Stop any active recording/playback
+  stopRecording();
+  speechEngine.stop();
+
+  var topic = currentActiveTopic;
+  if (!topic) {
+    alert('No topic loaded.');
+    return;
+  }
+
+  var durationSeconds = recordingStartTime ? (Date.now() - recordingStartTime) / 1000 : 5;
+  var transcript = currentTranscript || "";
+
+  // Calculate 3-Pillar Score
+  var result = scoreParagraph(topic.paragraph, transcript, durationSeconds);
+
+  // Populate results view
+  var scoreEl = document.getElementById('res-score');
+  var dateEl = document.getElementById('res-date');
+  var topicEl = document.getElementById('res-topic');
+  var levelEl = document.getElementById('res-level');
+  var accPill = document.getElementById('res-acc-pill');
+  var accFill = document.getElementById('res-acc-fill');
+  var wpmPill = document.getElementById('res-wpm-pill');
+  var wpmFill = document.getElementById('res-wpm-fill');
+  var fillPill = document.getElementById('res-fill-pill');
+  var fillFill = document.getElementById('res-fill-fill');
+  var badgeText = document.getElementById('res-badge-text');
+  var scoreRing = document.getElementById('res-score-ring');
+  var breakdownList = document.getElementById('res-breakdown');
+
+  if (scoreEl) scoreEl.textContent = result.score;
+  if (dateEl) dateEl.textContent = new Date().toLocaleDateString();
+  if (topicEl) topicEl.textContent = topic.title;
+  if (levelEl) levelEl.textContent = LEVEL_LABELS[topic.level] || topic.level;
+  if (accPill) accPill.textContent = result.accuracy + '%';
+  if (accFill) accFill.style.width = result.accuracy + '%';
+  if (wpmPill) wpmPill.textContent = result.wpm + ' WPM';
+  if (wpmFill) {
+    wpmFill.style.width = Math.min(100, (result.wpm / 180) * 100) + '%';
+    wpmFill.className = 'diag-bar-fill' + (result.wpm < 80 || result.wpm > 170 ? ' error' : '');
+  }
+  if (fillPill) fillPill.textContent = result.fluencyScore;
+  if (fillFill) fillFill.style.width = Math.min(100, (result.fluencyScore / 20) * 100) + '%';
+
+  var badge = result.score >= 85 ? "🔥 Fluency Maestro" : result.score >= 70 ? "⚡ Rising Speaker" : result.score >= 50 ? "📈 Developing Speaker" : "🌱 Keep Practising";
+  if (badgeText) badgeText.textContent = badge;
+
+  if (scoreRing) {
+    var c = 2 * Math.PI * 42;
+    scoreRing.style.strokeDashoffset = c - (result.score / 100) * c;
+  }
+
+  if (breakdownList) {
+    breakdownList.innerHTML = "";
+    result.wordsReview.forEach(function(item) {
+      var d = document.createElement('div');
+      d.className = 'breakdown-item ' + item.status;
+      d.innerHTML = '<span class="breakdown-word">' + item.word + '</span><span class="breakdown-tag ' + item.status + '">' + item.status.charAt(0).toUpperCase() + item.status.slice(1) + '</span>';
+      breakdownList.appendChild(d);
+    });
+  }
+
+  // Switch to results view
+  var views = document.querySelectorAll(".view");
+  views.forEach(function(v) { v.style.display = "none"; v.classList.remove("active-view"); });
+  var target = document.getElementById("view-results");
+  if (target) {
+    target.style.display = "block";
+    target.classList.add("active-view");
+    window.scrollTo(0, 0);
+  }
+}
+
+// ============================================================
 // STORY CARD EXPORT (html2canvas + confetti)
 // ============================================================
 
@@ -967,23 +1048,6 @@ var ui = {
     return div.innerHTML;
   },
 
-  prepareKaraoke: function(container, paragraph) {
-    container.innerHTML = "";
-    var words = paragraph.split(/\s+/);
-    words.forEach(function(w, i) {
-      var span = document.createElement("span");
-      span.textContent = w;
-      span.id = "word-" + i;
-      span.dataset.index = i;
-      span.className = "karaoke-word";
-      span.setAttribute("role", "button");
-      span.setAttribute("aria-label", "Word " + (i + 1) + ": " + w);
-      span.tabIndex = 0;
-      container.appendChild(span);
-      if (i < words.length - 1) container.appendChild(document.createTextNode(" "));
-    });
-  },
-
   setRecordingState: function(button, labelEl, recording) {
     if (recording) {
       button.classList.add("recording");
@@ -1054,8 +1118,8 @@ document.addEventListener('click', function(e) {
     return;
   }
 
-  var selectedInterest = interestEl.getAttribute('data-value') || interestEl.textContent.trim().toLowerCase();
-  var selectedLevel = levelEl.getAttribute('data-value') || levelEl.textContent.trim().toLowerCase();
+  var chosenInterest = interestEl.getAttribute('data-value') || interestEl.textContent.trim();
+  var chosenLevel = levelEl.getAttribute('data-value') || levelEl.textContent.trim();
 
   var obView = document.getElementById('view-onboarding');
   var pracView = document.getElementById('view-practice') || document.getElementById('view-dashboard');
@@ -1065,8 +1129,8 @@ document.addEventListener('click', function(e) {
     pracView.classList.add('active-view');
   }
 
-  if (typeof loadPracticeSession === 'function') {
-    loadPracticeSession(selectedInterest, selectedLevel);
+  if (typeof initPracticeSession === 'function') {
+    initPracticeSession(chosenInterest, chosenLevel);
   }
 });
 
@@ -1079,7 +1143,7 @@ document.addEventListener('click', function(e) {
   if (!playBtn) return;
   e.preventDefault();
 
-  var topic = window.currentActiveTopic;
+  var topic = currentActiveTopic;
   if (!topic) return;
 
   if (speechEngine.isSpeaking()) {
@@ -1105,14 +1169,13 @@ document.addEventListener('click', function(e) {
   if (!recBtn) return;
   e.preventDefault();
 
-  var topic = window.currentActiveTopic;
+  var topic = currentActiveTopic;
   if (!topic) {
     alert('No topic loaded. Please start a new practice session.');
     return;
   }
 
   if (!isRecording) {
-    // Start recording
     recognizer = startRecording({
       onResult: function(res) {
         var recStatus = document.getElementById('rec-status');
@@ -1130,12 +1193,10 @@ document.addEventListener('click', function(e) {
         recBtn.textContent = 'Record Voice';
         var recStatus = document.getElementById('rec-status');
         if (recStatus) recStatus.textContent = 'Speech recognition not available. Using simulation mode.';
-        // Auto-enable simulate: just set transcript to topic paragraph
         currentTranscript = topic.paragraph;
       }
     });
   } else {
-    // Stop recording
     stopRecording();
     var recStatus = document.getElementById('rec-status');
     if (recStatus) recStatus.textContent = 'Recording stopped. Click Done to evaluate.';
@@ -1150,72 +1211,7 @@ document.addEventListener('click', function(e) {
   var doneBtn = e.target.closest('#prac-done');
   if (!doneBtn) return;
   e.preventDefault();
-
-  // Stop any active recording/playback
-  stopRecording();
-  speechEngine.stop();
-
-  var topic = window.currentActiveTopic;
-  if (!topic) {
-    alert('No topic loaded.');
-    return;
-  }
-
-  var durationSeconds = recordingStartTime ? (Date.now() - recordingStartTime) / 1000 : 5;
-  var transcript = currentTranscript || "";
-
-  // Calculate 3-Pillar Score
-  var result = scoreParagraph(topic.paragraph, transcript, durationSeconds);
-
-  // Populate results view
-  var scoreEl = document.getElementById('res-score');
-  var dateEl = document.getElementById('res-date');
-  var topicEl = document.getElementById('res-topic');
-  var levelEl = document.getElementById('res-level');
-  var accPill = document.getElementById('res-acc-pill');
-  var accFill = document.getElementById('res-acc-fill');
-  var wpmPill = document.getElementById('res-wpm-pill');
-  var wpmFill = document.getElementById('res-wpm-fill');
-  var fillPill = document.getElementById('res-fill-pill');
-  var fillFill = document.getElementById('res-fill-fill');
-  var badgeText = document.getElementById('res-badge-text');
-  var scoreRing = document.getElementById('res-score-ring');
-  var breakdownList = document.getElementById('res-breakdown');
-
-  if (scoreEl) scoreEl.textContent = result.score;
-  if (dateEl) dateEl.textContent = new Date().toLocaleDateString();
-  if (topicEl) topicEl.textContent = topic.title;
-  if (levelEl) levelEl.textContent = LEVEL_LABELS[topic.level] || topic.level;
-  if (accPill) accPill.textContent = result.accuracy + '%';
-  if (accFill) accFill.style.width = result.accuracy + '%';
-  if (wpmPill) wpmPill.textContent = result.wpm + ' WPM';
-  if (wpmFill) {
-    wpmFill.style.width = Math.min(100, (result.wpm / 180) * 100) + '%';
-    wpmFill.className = 'diag-bar-fill' + (result.wpm < 80 || result.wpm > 170 ? ' error' : '');
-  }
-  if (fillPill) fillPill.textContent = result.fluencyScore;
-  if (fillFill) fillFill.style.width = Math.min(100, (result.fluencyScore / 20) * 100) + '%';
-
-  var badge = result.score >= 85 ? "🔥 Fluency Maestro" : result.score >= 70 ? "⚡ Rising Speaker" : result.score >= 50 ? "📈 Developing Speaker" : "🌱 Keep Practising";
-  if (badgeText) badgeText.textContent = badge;
-
-  if (scoreRing) {
-    var c = 2 * Math.PI * 42;
-    scoreRing.style.strokeDashoffset = c - (result.score / 100) * c;
-  }
-
-  if (breakdownList) {
-    breakdownList.innerHTML = "";
-    result.wordsReview.forEach(function(item) {
-      var d = document.createElement('div');
-      d.className = 'breakdown-item ' + item.status;
-      d.innerHTML = '<span class="breakdown-word">' + ui.escapeHtml(item.word) + '</span><span class="breakdown-tag ' + item.status + '">' + item.status.charAt(0).toUpperCase() + item.status.slice(1) + '</span>';
-      breakdownList.appendChild(d);
-    });
-  }
-
-  // Switch to results view
-  ui.showView('view-results');
+  evaluateSpeech();
 });
 
 // ============================================================
@@ -1265,14 +1261,19 @@ document.addEventListener('click', function(e) {
   var recStatus = document.getElementById('rec-status');
   if (recStatus) recStatus.textContent = 'Press record and read the paragraph aloud.';
 
+  var liveBox = document.getElementById('live-transcript');
+  if (liveBox) {
+    liveBox.style.display = 'none';
+    liveBox.textContent = '';
+  }
+
   currentTranscript = "";
   recordingStartTime = null;
   isRecording = false;
 
-  // Re-render karaoke
-  var topic = window.currentActiveTopic;
+  var topic = currentActiveTopic;
   if (topic) {
-    renderTopicToPractice(topic);
+    renderParagraphWords(topic.paragraph);
   }
 });
 
@@ -1287,20 +1288,29 @@ document.addEventListener('click', function(e) {
 
   stopRecording();
   speechEngine.stop();
-  ui.showView("view-dashboard");
+
+  var views = document.querySelectorAll(".view");
+  views.forEach(function(v) { v.style.display = "none"; v.classList.remove("active-view"); });
+  var target = document.getElementById("view-dashboard");
+  if (target) {
+    target.style.display = "block";
+    target.classList.add("active-view");
+    window.scrollTo(0, 0);
+  }
 });
 
 // ============================================================
 // ERROR HANDLING & VERSION INFO
 // ============================================================
 
-console.log("SpeakFlow v5.0 Loaded — Standalone JS with practice rendering");
+console.log("SpeakFlow v6.0 Loaded — Fully Interactive Live");
 
 document.addEventListener('DOMContentLoaded', function() {
   var chips = document.querySelectorAll('.chip');
   chips.forEach(function(chip) {
     chip.style.transition = 'background 0.2s, color 0.2s';
   });
+  urduPopup.init();
 });
 
 try { localStorage.setItem('_speakflow_test', 'ok'); localStorage.removeItem('_speakflow_test'); } catch(e) {}
@@ -1308,11 +1318,10 @@ try { localStorage.setItem('_speakflow_test', 'ok'); localStorage.removeItem('_s
 window.SpeakFlow = {
   INTEREST_LABELS: INTEREST_LABELS,
   LEVEL_LABELS: LEVEL_LABELS,
-  defaultProfile: defaultProfile,
   getRandomTopic: getRandomTopic,
-  loadPracticeSession: loadPracticeSession,
+  initPracticeSession: initPracticeSession,
   scoreParagraph: scoreParagraph,
   speechEngine: speechEngine,
   ui: ui,
-  TOPICS: TOPICS
+  TOPIC_DATABASE: TOPIC_DATABASE
 };
