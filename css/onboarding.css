@@ -1,0 +1,71 @@
+/* ============================================================
+   SpeakFlow — Onboarding View
+   ============================================================ */
+
+.onboarding-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 2rem);
+  padding-top: 80px;
+}
+
+.onboarding-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 2.2rem 1.75rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.ob-title {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  font-weight: 900;
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.02em;
+}
+
+.ob-sub {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin-bottom: 1.75rem;
+  line-height: 1.5;
+}
+
+.ob-form { display: flex; flex-direction: column; gap: 1.1rem; }
+
+.ob-field { display: flex; flex-direction: column; gap: 0.45rem; }
+
+.ob-label {
+  font-size: 0.82rem; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+.ob-input {
+  width: 100%; padding: 0.8rem 1rem; border-radius: 10px;
+  border: 1px solid var(--glass-border); background: var(--surface-elev);
+  color: var(--text); font-size: 0.95rem; transition: var(--transition);
+}
+.ob-input::placeholder { color: var(--text-dim); }
+.ob-input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-glow); }
+.ob-input.error { border-color: var(--error); }
+
+.ob-err { color: var(--error); font-size: 0.78rem; font-weight: 700; height: 1.1em; }
+
+.ob-footer {
+  margin-top: 1.25rem; font-size: 0.85rem; color: var(--text-muted); text-align: center;
+}
+
+.btn-full { margin-top: 0.25rem; }
+
+@media (max-width: 480px) {
+  .onboarding-card { padding: 1.75rem 1.25rem; }
+  .ob-title { font-size: 1.5rem; }
+}

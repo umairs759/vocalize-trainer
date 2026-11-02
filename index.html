@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="theme-color" content="#09090b">
+  <meta name="description" content="SpeakFlow — English Speaking & Vocabulary Practice Web App">
+
+  <!-- Content Security Policy: allows ES modules, inline styles, CDNs, Web Speech API, media recording -->
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self';">
+
+  <title>SpeakFlow | English Speaking & Vocabulary Practice</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/onboarding.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/practice.css">
+  <link rel="stylesheet" href="css/animations.css">
+</head>
+<body>
+
+  <!-- Toast notifications -->
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Speech fallback notice (shown when mic/speech unavailable) -->
+  <div id="speech-fallback" class="speech-fallback hidden" role="alert">
+    <span class="fallout-icon">&#9888;</span>
+    <div class="fallout-text">
+      <strong>Microphone / speech recognition not available.</strong><br>
+      Speech recognition requires a Chromium-based browser (Chrome, Edge, Brave) with microphone permission.
+    </div>
+    <div class="fallout-actions">
+      <button id="btn-simulate-mic" type="button" class="btn btn-primary">Simulate Practice (No Mic)</button>
+      <button id="btn-dismiss-fallback" type="button" class="btn btn-ghost">Dismiss</button>
+    </div>
+  </div>
+
+  <!-- ========== VIEW: ONBOARDING ========== -->
+  <section id="view-onboarding" class="view active-view" aria-label="Onboarding">
+    <div class="onboarding-wrap">
+      <div class="glass-card onboarding-card">
+        <div class="brand">
+          <div class="logo-mark">S</div>
+          <div class="logo-text">Speak<span class="logo-accent">Flow</span></div>
+        </div>
+        <h1 class="ob-title">Let's build your speaking habit.</h1>
+        <p class="ob-sub">Practise English with native audio, karaoke sync, and Urdu vocabulary hints.</p>
+
+        <form id="onboarding-form" class="ob-form" novalidate>
+          <div class="ob-field">
+            <label class="ob-label">Full name</label>
+            <input type="text" id="ob-name" class="ob-input" placeholder="e.g. Usama" required minlength="2" maxlength="30">
+            <span class="ob-err" id="ob-name-err"></span>
+          </div>
+
+          <div class="ob-field">
+            <label class="ob-label">Age</label>
+            <input type="number" id="ob-age" class="ob-input" placeholder="e.g. 22" min="13" max="100" required>
+            <span class="ob-err" id="ob-age-err"></span>
+          </div>
+
+          <div class="ob-field">
+            <label class="ob-label">What interests you most?</label>
+            <div class="chip-group" id="ob-interest-group" role="radiogroup" aria-label="Interests">
+              <button type="button" class="chip chip-select" data-value="tech" role="radio" aria-checked="false">Tech</button>
+              <button type="button" class="chip chip-select" data-value="daily_life" role="radio" aria-checked="false">Daily Life</button>
+              <button type="button" class="chip chip-select" data-value="business" role="radio" aria-checked="false">Business</button>
+              <button type="button" class="chip chip-select" data-value="fitness" role="radio" aria-checked="false">Fitness</button>
+              <button type="button" class="chip chip-select" data-value="cinema" role="radio" aria-checked="false">Cinema</button>
+            </div>
+            <input type="hidden" id="ob-interest" value="daily_life">
+            <span class="ob-err" id="ob-interest-err"></span>
+          </div>
+
+          <div class="ob-field">
+            <label class="ob-label">Target level</label>
+            <div class="chip-group" id="ob-level-group" role="radiogroup" aria-label="Level">
+              <button type="button" class="chip chip-select" data-value="beginner" role="radio" aria-checked="false">Beginner</button>
+              <button type="button" class="chip chip-select" data-value="intermediate" role="radio" aria-checked="false">Intermediate</button>
+              <button type="button" class="chip chip-select" data-value="advanced" role="radio" aria-checked="false">Advanced</button>
+            </div>
+            <input type="hidden" id="ob-level" value="beginner">
+            <span class="ob-err" id="ob-level-err"></span>
+          </div>
+
+          <button type="button" id="ob-submit" class="btn btn-primary btn-full">Start Speaking &rarr;</button>
+        </form>
+
+        <p class="ob-footer">Already have a profile? <button type="button" id="ob-load" class="link-btn">Load saved profile</button></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VIEW: DASHBOARD ========== -->
+  <section id="view-dashboard" class="view" aria-label="Dashboard">
+    <header class="app-header">
+      <div class="logo">Speak<span class="logo-accent">Flow</span></div>
+      <div class="header-actions">
+        <button id="dash-profile-btn" type="button" class="btn btn-ghost" aria-label="Edit profile">Profile</button>
+      </div>
+    </header>
+
+    <div class="dash-wrap">
+      <div class="glass-card dash-welcome">
+        <h2 class="dash-greeting">Good <span id="dash-timeofday">day</span>, <span id="dash-name">Speaker</span>!</h2>
+        <p class="dash-sub">Keep your streak alive. Speak every day.</p>
+
+        <div class="dash-streak-badge" id="dash-streak-badge">🔥 <span id="dash-streak">0</span> Day Streak</div>
+
+        <div class="dash-stats">
+          <div class="stat">
+            <span class="stat-value" id="dash-sessions">0</span>
+            <span class="stat-label">Sessions</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value" id="dash-best">0</span>
+            <span class="stat-label">Best Score</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value" id="dash-interest">-</span>
+            <span class="stat-label">Interest</span>
+          </div>
+        </div>
+
+        <div id="dash-level-badge" class="dash-level-badge">Level: Beginner</div>
+      </div>
+
+      <div class="glass-card dash-modes">
+        <h3 class="dash-modes-title">Practice Modes</h3>
+        <div class="mode-grid">
+          <button type="button" class="mode-card mode-daily" data-mode="daily">
+            <span class="mode-emoji">&#127918;</span>
+            <span class="mode-title">Daily Practice</span>
+            <span class="mode-desc">Topic + Karaoke + Recording</span>
+          </button>
+          <button type="button" class="mode-card mode-impromptu" data-mode="impromptu">
+            <span class="mode-emoji">&#128396;</span>
+            <span class="mode-title">Impromptu 60s Blitz</span>
+            <span class="mode-desc">Timer-based free speaking</span>
+          </button>
+          <button type="button" class="mode-card mode-shadowing" data-mode="shadowing">
+            <span class="mode-emoji">&#128266;</span>
+            <span class="mode-title">Shadowing Challenge</span>
+            <span class="mode-desc">Listen line-by-line &amp; repeat</span>
+          </button>
+        </div>
+        <button type="button" id="dash-start-session" class="btn btn-primary btn-full mt-4">Start Session &rarr;</button>
+      </div>
+
+      <div class="glass-card dash-recent">
+        <h3 class="dash-modes-title">Recent Sessions</h3>
+        <div id="dash-recent-list" class="recent-list">
+          <p class="empty-msg">No sessions yet. Start your first practice!</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VIEW: PRACTICE ========== -->
+  <section id="view-practice" class="view" aria-label="Practice">
+    <header class="app-header practice-header">
+      <button id="prac-back" type="button" class="btn btn-ghost" aria-label="Back to dashboard">&#8592; Dashboard</button>
+      <div class="logo">Speak<span class="logo-accent">Flow</span></div>
+      <div id="prac-rate-chip" class="chip chip-selected" aria-label="Rate 1.0x">1.0x</div>
+    </header>
+
+    <div class="prac-wrap">
+      <div class="glass-card prac-topic-card">
+        <div class="topic-meta">
+          <span class="topic-level" id="prac-level-badge">Beginner</span>
+          <span class="topic-divider">&#8226;</span>
+          <span class="topic-interest" id="prac-interest-badge">Daily Life</span>
+        </div>
+        <h2 class="topic-title" id="prac-topic-title">My Smartphone</h2>
+      </div>
+
+      <div class="glass-card prac-karaoke-card">
+        <div class="karaoke-toolbar">
+          <button id="prac-play" type="button" class="btn btn-primary" aria-label="Play native accent">&#9654; Play Native Accent</button>
+          <button id="prac-reset" type="button" class="btn btn-ghost" aria-label="Reset paragraph">&#8634; Reset</button>
+        </div>
+
+        <div id="karaoke-paragraph" class="karaoke-paragraph" role="region" aria-label="Practice paragraph" tabindex="0"></div>
+
+        <div class="karaoke-hint">
+          Tap any word to see its <strong>Urdu translation</strong>, synonym, and example.
+        </div>
+
+        <!-- Word tooltip / popover -->
+        <div id="word-tooltip" class="word-tooltip hidden" role="tooltip">
+          <div class="tooltip-word" id="tooltip-word"></div>
+          <div class="tooltip-urdu" id="tooltip-urdu"></div>
+          <div class="tooltip-synonym" id="tooltip-synonym"></div>
+          <div class="tooltip-example" id="tooltip-example"></div>
+          <button id="tooltip-play" type="button" class="btn btn-ghost tooltip-play" aria-label="Pronounce word">&#9654;</button>
+        </div>
+      </div>
+
+      <div class="glass-card prac-controls">
+        <div class="mic-station">
+          <button id="prac-record" type="button" class="btn btn-danger btn-large" aria-label="Record voice">
+            <span class="rec-dot"></span>
+            <span id="rec-label">Record Voice</span>
+          </button>
+          <div id="rec-wave" class="rec-wave hidden" aria-hidden="true">
+            <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+          </div>
+          <p id="rec-status" class="rec-status">Press record and read the paragraph aloud.</p>
+        </div>
+
+        <div class="rate-toggle">
+          <span class="rate-label">Speed</span>
+          <button type="button" class="rate-btn" data-rate="0.8">0.8x Slow</button>
+          <button type="button" class="rate-btn active" data-rate="1.0">1.0x Normal</button>
+        </div>
+
+        <button id="prac-done" type="button" class="btn btn-primary btn-full">Done / Evaluate &#10140;</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== VIEW: RESULTS ========== -->
+  <section id="view-results" class="view" aria-label="Results">
+    <header class="app-header">
+      <button id="res-back" type="button" class="btn btn-ghost" aria-label="Back to dashboard">&#8592; Dashboard</button>
+      <div class="logo">Speak<span class="logo-accent">Flow</span></div>
+      <div class="header-spacer"></div>
+    </header>
+
+    <div class="res-wrap">
+      <div class="glass-card res-score-card">
+        <div class="res-header">
+          <h2 class="res-title">Your Score</h2>
+          <span class="res-date" id="res-date"></span>
+        </div>
+        <div class="score-circle-wrap">
+          <svg class="score-circle" viewBox="0 0 100 100">
+            <circle class="score-bg" cx="50" cy="50" r="42"></circle>
+            <circle class="score-ring" id="res-score-ring" cx="50" cy="50" r="42"></circle>
+          </svg>
+          <div class="score-value-wrap">
+            <span class="score-value" id="res-score">0</span>
+            <span class="score-unit">/ 100</span>
+          </div>
+        </div>
+        <div class="res-badge">
+          <span class="badge-pill" id="res-badge-text">Keep Practising</span>
+        </div>
+        <div class="res-meta">
+          <span class="meta-chip"><strong>Topic:</strong> <span id="res-topic">-</span></span>
+          <span class="meta-chip"><strong>Level:</strong> <span id="res-level">-</span></span>
+        </div>
+      </div>
+
+      <div class="grid-2 res-diagnostic">
+        <div class="glass-card res-diag-panel">
+          <h3 class="diag-title">Accuracy <span class="diag-pill" id="res-acc-pill">0%</span></h3>
+          <div class="diag-bar-wrap"><div class="diag-bar"><div class="diag-bar-fill" id="res-acc-fill"></div></div></div>
+          <p class="diag-note">Correctly spoken words vs total target words.</p>
+        </div>
+        <div class="glass-card res-diag-panel">
+          <h3 class="diag-title">Pace (WPM) <span class="diag-pill" id="res-wpm-pill">0</span></h3>
+          <div class="diag-bar-wrap"><div class="diag-bar"><div class="diag-bar-fill" id="res-wpm-fill"></div></div></div>
+          <p class="diag-note">Target fluency: 110&ndash;150 WPM.</p>
+        </div>
+        <div class="glass-card res-diag-panel">
+          <h3 class="diag-title">Fluency <span class="diag-pill" id="res-fill-pill">20</span></h3>
+          <div class="diag-bar-wrap"><div class="diag-bar"><div class="diag-bar-fill" id="res-fill-fill"></div></div></div>
+          <p class="diag-note">Filler &amp; hesitation deduction.</p>
+        </div>
+      </div>
+
+      <div class="glass-card res-words">
+        <h3 class="diag-title">Word-by-Word Review</h3>
+        <div class="breakdown-list" id="res-breakdown"></div>
+      </div>
+
+      <div class="glass-card res-actions">
+        <h3 class="res-actions-title">Share Your Win</h3>
+        <p class="res-actions-sub">Export a 9:16 Instagram Story card of your result.</p>
+        <button id="res-try-again" type="button" class="btn btn-ghost">Try Again</button>
+        <button id="res-next-topic" type="button" class="btn btn-ghost">Next Topic</button>
+        <button id="res-export" type="button" class="btn btn-primary btn-full">Download Instagram Story Card</button>
+        <div id="res-confetti" class="confetti-root"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Story card export container (9:16 mobile story) -->
+  <div id="story-card-container" class="story-card-container hidden" aria-hidden="true" aria-label="Story card preview">
+    <div class="story-card" id="story-card">
+      <div class="story-brand">
+        <div class="story-logo">SpeakFlow</div>
+        <span class="story-tag">100% Free Voice Trainer</span>
+      </div>
+      <div class="story-body">
+        <div class="story-user">
+          <span class="story-name" id="story-name">Speaker</span>
+          <span class="story-date" id="story-date"></span>
+        </div>
+        <div class="story-topic">
+          <span class="story-topic-label">Topic</span>
+          <h3 class="story-topic-title" id="story-topic">-</h3>
+          <span class="story-badge" id="story-badge">Rising Speaker</span>
+        </div>
+        <div class="story-score">
+          <div class="story-circle-wrap">
+            <svg class="story-circle" viewBox="0 0 100 100">
+              <circle class="story-bg" cx="50" cy="50" r="38"></circle>
+              <circle class="story-ring" id="story-ring" cx="50" cy="50" r="38"></circle>
+            </svg>
+            <span class="story-score-value" id="story-score">0</span>
+          </div>
+          <span class="story-score-label">Fluency Score</span>
+        </div>
+        <div class="story-tags">
+          <span class="story-tag-pill" id="story-wpm">- WPM</span>
+          <span class="story-tag-pill" id="story-accuracy">- Accuracy</span>
+          <span class="story-tag-pill" id="story-level">- Level</span>
+        </div>
+      </div>
+      <div class="story-footer">
+        <span>&#169; SpeakFlow &#8226; Practiced on SpeakFlow • 100% Free Voice Trainer</span>
+      </div>
+    </div>
+    <button id="story-close" type="button" class="story-close" aria-label="Close preview">&#215;</button>
+    <button id="story-download" type="button" class="story-download">Download PNG</button>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
